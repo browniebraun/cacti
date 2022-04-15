@@ -1230,6 +1230,12 @@ function get_selective_log_level() {
 function cacti_log($string, $output = false, $environ = 'CMDPHP', $level = '') {
 	global $config, $database_log;
 
+	static $start = null;
+
+	if ($start == null) {
+		$start = microtime(true);
+	}
+
 	if (!isset($database_log)) {
 		$database_log = false;
 	}
@@ -1237,6 +1243,8 @@ function cacti_log($string, $output = false, $environ = 'CMDPHP', $level = '') {
 	$last_log     = $database_log;
 	$database_log = false;
 	$force_level  = get_selective_log_level();
+	$oprefix      = '';
+	$omessage     = '';
 
 	/* only log if the specific level is reached, developer debug is special low + specific devdbg calls */
 	if ($force_level == '') {
@@ -1274,12 +1282,25 @@ function cacti_log($string, $output = false, $environ = 'CMDPHP', $level = '') {
 	/* format the message */
 	if ($environ == 'POLLER') {
 		$prefix = "$date - " . $environ . ': Poller[' . $config['poller_id'] . '] PID[' . getmypid() . '] ';
+
+		if ($output) {
+			$oprefix = sprintf('Total[%3.4f] ', microtime(true) - $start);
+		}
 	} else {
-		$prefix = "$date - " . $environ . ' ';
+		$prefix  = "$date - " . $environ . ' ';
+
+		if ($output) {
+			$oprefix = $prefix;
+		}
 	}
 
 	/* Log to Logfile */
 	$message = clean_up_lines($string) . PHP_EOL;
+
+	if ($output) {
+		$omessage = $oprefix . $message;
+	}
+
 	if (($logdestination == 1 || $logdestination == 2) && read_config_option('log_verbosity') != POLLER_VERBOSITY_NONE) {
 		/* print the data to the log (append) */
 		$fp = @fopen($logfile, 'a');
@@ -1326,7 +1347,7 @@ function cacti_log($string, $output = false, $environ = 'CMDPHP', $level = '') {
 
 	/* print output to standard out if required */
 	if ($output == true && isset($_SERVER['argv'][0])) {
-		print $message;
+		print $omessage;
 	}
 
 	$database_log = $last_log;
@@ -6814,9 +6835,24 @@ function cacti_cookie_set($session, $val) {
 	}
 
 	if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off') {
-		setcookie($session, $val, time() + 3600, $config['url_path'], $domain, true, true);
+		$secure = true;
 	} else {
-		setcookie($session, $val, time() + 3600, $config['url_path'], $domain, false, true);
+		$secure = false;
+	}
+
+	if (version_compare(PHP_VERSION, '7.3', '>=')) {
+		$options = array(
+			'path'     => $config['url_path'],
+			'expires'  => time() + 3600,
+			'domain'   => $domain,
+			'secure'   => $secure,
+			'httponly' => true,
+			'samesite' => 'Strict'
+		);
+
+		setcookie($session, $val, $options);
+	} else {
+		setcookie($session, $val, time() + 3600, $config['url_path'], $domain, $secure, true);
 	}
 }
 
@@ -6835,11 +6871,26 @@ function cacti_cookie_logout() {
 	}
 
 	if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off') {
-		setcookie(session_name(), '', time() - 3600, $config['url_path'], $domain, true, true);
-		setcookie('cacti_remembers', '', time() - 3600, $config['url_path'], $domain, true, true);
+		$secure = true;
 	} else {
-		setcookie(session_name(), '', time() - 3600, $config['url_path'], $domain, false, true);
-		setcookie('cacti_remembers', '', time() - 3600, $config['url_path'], $domain, false, true);
+		$secure = false;
+	}
+
+	if (version_compare(PHP_VERSION, '7.3', '>=')) {
+		$options = array(
+			'path'     => $config['url_path'],
+			'expires'  => time() - 3600,
+			'domain'   => $domain,
+			'secure'   => $secure,
+			'httponly' => true,
+			'samesite' => 'Strict'
+		);
+
+		setcookie(session_name(), '', $options);
+		setcookie('cacti_remembers', '', $options);
+	} else {
+		setcookie(session_name(), '', time() - 3600, $config['url_path'], $domain, $secure, true);
+		setcookie('cacti_remembers', '', time() - 3600, $config['url_path'], $domain, $secure, true);
 	}
 
 	unset($_COOKIE[$config['cacti_session_name']]);
@@ -6859,12 +6910,27 @@ function cacti_cookie_session_set($user, $realm, $nssecret) {
 		$domain = '';
 	}
 
+	if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off') {
+		$secure = true;
+	} else {
+		$secure = false;
+	}
+
 	$_SESSION['cacti_remembers'] = true;
 
-	if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off') {
-		setcookie('cacti_remembers', $user . ',' . $realm . ',' . $nssecret, time()+(86400*30), $config['url_path'], $domain, true, true);
+	if (version_compare(PHP_VERSION, '7.3', '>=')) {
+		$options = array(
+			'path'     => $config['url_path'],
+			'expires'  => time() + (86400*30),
+			'domain'   => $domain,
+			'secure'   => $secure,
+			'httponly' => true,
+			'samesite' => 'Strict'
+		);
+
+		setcookie('cacti_remembers', $user . ',' . $realm . ',' . $nssecret, $options);
 	} else {
-		setcookie('cacti_remembers', $user . ',' . $realm . ',' . $nssecret, time()+(86400*30), $config['url_path'], $domain, false, true);
+		setcookie('cacti_remembers', $user . ',' . $realm . ',' . $nssecret, time() + (86400*30), $config['url_path'], $domain, $secure, true);
 	}
 }
 
@@ -6883,9 +6949,24 @@ function cacti_cookie_session_logout() {
 	}
 
 	if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off') {
-		setcookie('cacti_remembers', '', time() - 3600, $config['url_path'], $domain, true, true);
+		$secure = true;
 	} else {
-		setcookie('cacti_remembers', '', time() - 3600, $config['url_path'], $domain, false, true);
+		$secure = false;
+	}
+
+	if (version_compare(PHP_VERSION, '7.3', '>=')) {
+		$options = array(
+			'path'     => $config['url_path'],
+			'expires'  => time() - 3600,
+			'domain'   => $domain,
+			'secure'   => $secure,
+			'httponly' => true,
+			'samesite' => 'Strict'
+		);
+
+		setcookie('cacti_remembers', '', $options);
+	} else {
+		setcookie('cacti_remembers', '', time() - 3600, $config['url_path'], $domain, $secure, true);
 	}
 }
 
