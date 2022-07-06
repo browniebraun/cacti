@@ -101,6 +101,12 @@ function repopulate_poller_cache() {
 		ON dtr.data_input_field_id = dif.id
 		WHERE dtr.local_data_id = 0
 		GROUP BY dtr.data_template_id, dif.data_name');
+
+	if (isset($_SESSION['sess_user_id'])) {
+		cacti_log('NOTE: Poller Cache repopulated by user ' . get_username($_SESSION['sess_user_id']), false, 'WEBUI');
+	} else {
+		cacti_log('NOTE: Poller Cache repopulated by cli script');
+	}
 }
 
 function update_poller_cache_from_query($host_id, $data_query_id, $local_data_ids) {
@@ -197,18 +203,19 @@ function update_poller_cache($data_source, $commit = false) {
 			$field = data_query_field_list($data_input['data_template_data_id']);
 
 			$params = array();
-			if ($field['output_type'] != '') {
+			if (cacti_sizeof($field) && $field['output_type'] != '') {
 				$output_type_sql = ' AND sqgr.snmp_query_graph_id = ' . $field['output_type'];
 			} else {
 				$output_type_sql = '';
 			}
+
 			$params[] = $data_input['data_template_id'];
 			$params[] = $data_source['id'];
 
 			$outputs = db_fetch_assoc_prepared('SELECT DISTINCT ' . SQL_NO_CACHE . "
-				sqgr.snmp_field_name, dtr.id as data_template_rrd_id
+				sqgr.snmp_field_name, dtr.id AS data_template_rrd_id
 				FROM snmp_query_graph_rrd AS sqgr
-				INNER JOIN data_template_rrd AS dtr FORCE INDEX (local_data_id)
+				INNER JOIN data_template_rrd AS dtr
 				ON sqgr.data_template_rrd_id = dtr.local_data_template_rrd_id
 				WHERE sqgr.data_template_id = ?
 				AND dtr.local_data_id = ?
@@ -565,7 +572,7 @@ function poller_update_poller_cache_from_buffer($local_data_ids, &$poller_items,
 	/* use a reasonable insert buffer, the default is 1MByte */
 	$max_packet   = 256000;
 
-	/* setup somme defaults */
+	/* setup some defaults */
 	$overhead     = strlen($sql_prefix) + strlen($sql_suffix);
 	$buf_len      = 0;
 	$buf_count    = 0;
@@ -1104,7 +1111,7 @@ function utilities_get_mysql_recommendations() {
 					'value' => '16',
 					'measure' => 'pinst',
 					'class' => 'warning',
-					'comment' => __('%s will divide the innodb_buffer_pool into memory regions to improve performance for versions of MariaDB less than 10.5.  The max value is 64.  When your innodb_buffer_pool is less than 1GB, you should use the pool size divided by 128MB.  Continue to use this equation upto the max of 64.', $database)
+					'comment' => __('%s will divide the innodb_buffer_pool into memory regions to improve performance for versions of MariaDB less than 10.5.  The max value is 64.  When your innodb_buffer_pool is less than 1GB, you should use the pool size divided by 128MB.  Continue to use this equation up to the max of 64.', $database)
 					),
 				'innodb_io_capacity' => array(
 					'value' => '5000',
@@ -1580,10 +1587,17 @@ function utility_php_verify_recommends(&$recommends, $source) {
 	$memory_limit   = utility_get_formatted_bytes($memory_ini, 'M', $memory_ini, 'B');
 
 	$execute_time   = ini_get('max_execution_time');
+	$ini_values     = parse_ini_file(get_cfg_var('cfg_file_path'));
 
 	$timezone       = ini_get('date.timezone');
 
 	$recommends = array(
+		array(
+			'name'        => 'location',
+			'value'       => get_cfg_var('cfg_file_path'),
+			'current'     => get_cfg_var('cfg_file_path'),
+			'status'      => 2,
+		),
 		array(
 			'name'        => 'version',
 			'value'       => $rec_version,
@@ -1594,19 +1608,19 @@ function utility_php_verify_recommends(&$recommends, $source) {
 			'name'        => 'memory_limit',
 			'value'       => $rec_memory_mb,
 			'current'     => $memory_ini,
-			'status'      => ($memory_limit <= 0 || $memory_limit >= $rec_memory) ? DB_STATUS_SUCCESS : DB_STATUS_WARNING,
+			'status'      => (($memory_limit <= 0 || $memory_limit >= $rec_memory) ? DB_STATUS_SUCCESS :($memory_limit != $ini_values['memory_limit'] ? DB_STATUS_RESTART :  DB_STATUS_WARNING)),
 		),
 		array(
 			'name'        => 'max_execution_time',
 			'value'       => $rec_execute,
 			'current'     => $execute_time,
-			'status'      => ($execute_time <= 0 || $execute_time >= $rec_execute) ? DB_STATUS_SUCCESS : DB_STATUS_WARNING,
+			'status'      => (($execute_time <= 0 || $execute_time >= $rec_execute) ? DB_STATUS_SUCCESS : ($execute_time != $ini_values['max_execution_time'] ? DB_STATUS_RESTART : DB_STATUS_WARNING)),
 		),
 		array(
 			'name'        => 'date.timezone',
 			'value'       => '<timezone>',
 			'current'     => $timezone,
-			'status'      => ($timezone ? DB_STATUS_SUCCESS : DB_STATUS_ERROR),
+			'status'      => ($timezone ? DB_STATUS_SUCCESS : ($timezone != $ini_values['date.timezone'] ? DB_STATUS_RESTART : DB_STATUS_ERROR)),
 		),
 	);
 }
@@ -1617,7 +1631,7 @@ function utility_php_set_recommends_text(&$recs) {
 			if (cacti_sizeof($recommends)) {
 				foreach ($recommends as $index => $recommend) {
 					if ($recommend['name'] == 'version') {
-						$recs[$name][$index]['description'] = __('PHP %s is the mimimum version', $recommend['value']);
+						$recs[$name][$index]['description'] = __('PHP %s is the minimum version', $recommend['value']);
 					} elseif ($recommend['name'] == 'memory_limit') {
 						$recs[$name][$index]['description'] = __('A minimum of %s memory limit', $recommend['value']);
 					} elseif ($recommend['name'] == 'max_execution_time') {

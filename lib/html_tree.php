@@ -440,11 +440,11 @@ function get_device_leaf_class($host_id) {
 function draw_dhtml_tree_level($tree_id, $parent = 0, $editing = false) {
 	$dhtml_tree = array();
 
-	$heirarchy = get_allowed_tree_level($tree_id, $parent, $editing);
+	$hierarchy = get_allowed_tree_level($tree_id, $parent, $editing);
 
-	if (cacti_sizeof($heirarchy)) {
+	if (cacti_sizeof($hierarchy)) {
 		$dhtml_tree[] = "\t\t\t<ul>\n";
-		foreach ($heirarchy as $leaf) {
+		foreach ($hierarchy as $leaf) {
 			if ($leaf['host_id'] > 0) {
 				$dhtml_tree[] = "\t\t\t\t<li id='tbranch:" . $leaf['id'] . "_thost:" . $leaf['host_id'] . "' data-jstree='{ \"type\" : \"device\" }'>" . html_escape(strip_domain($leaf['hostname'])) . "</li>\n";
 			} elseif ($leaf['site_id'] > 0) {
@@ -467,15 +467,15 @@ function draw_dhtml_tree_level_graphing($tree_id, $parent = 0) {
 
 	include_once($config['base_path'] . '/lib/data_query.php');
 
-	$heirarchy = get_allowed_tree_content($tree_id, $parent);
+	$hierarchy = get_allowed_tree_content($tree_id, $parent);
 
 	$dhtml_tree = array();
 
-	if (cacti_sizeof($heirarchy)) {
+	if (cacti_sizeof($hierarchy)) {
 		if ($tree_id > 0) {
 			$dhtml_tree[] = "\t\t\t<ul>\n";
 
-			foreach ($heirarchy as $leaf) {
+			foreach ($hierarchy as $leaf) {
 				if ($leaf['site_id'] > 0) {  // It's a site
 					$dhtml_tree = array_merge($dhtml_tree, create_site_branch($leaf));
 				} elseif ($leaf['host_id'] > 0) {  // It's a host
@@ -489,7 +489,7 @@ function draw_dhtml_tree_level_graphing($tree_id, $parent = 0) {
 		} else {
 			$dhtml_tree[] = "<ul>\n";
 
-			foreach($heirarchy as $h) {
+			foreach($hierarchy as $h) {
 				$dhtml_tree[] = "<li id='tree_anchor-" . $h['tree_id'] . "' data-jstree='{ \"type\" : \"tree\" }' class='jstree-closed'><a href='" . html_escape($config['url_path'] . 'graph_view.php?action=tree&node=tree_anchor-' . $h['tree_id'] . '&site_id=-1&host_id=-1&host_template_id=-1&hgd=') . "'>" . html_escape($h['title']) . "</a></li>\n";
 			}
 
@@ -822,7 +822,7 @@ function grow_right_pane_tree($tree_id, $leaf_id, $host_group_data) {
 	$host_name            = '';
 	$site_name            = '';
 	$host_template_name   = '';
-	$title_delimeter      = '';
+	$title_delimiter      = '';
 	$host_group_data_name = '';
 	$graph_template_id    = '-1';
 	$data_query_id        = '-1';
@@ -930,38 +930,38 @@ function grow_right_pane_tree($tree_id, $leaf_id, $host_group_data) {
 	}
 
 	if ($tree_name != '') {
-		$title .= $title_delimeter . '<strong>' . __('Tree:') . '</strong> ' . html_escape($tree_name);
-		$title_delimeter = '-> ';
+		$title .= $title_delimiter . '<strong>' . __('Tree:') . '</strong> ' . html_escape($tree_name);
+		$title_delimiter = '-> ';
 	}
 
 	if ($site_name != '') {
-		$title .= $title_delimeter . '<strong>' . __('Site:') . '</strong>&nbsp;' . html_escape($site_name);
-		$title_delimeter = '-> ';
+		$title .= $title_delimiter . '<strong>' . __('Site:') . '</strong>&nbsp;' . html_escape($site_name);
+		$title_delimiter = '-> ';
 	}
 
 	if (cacti_sizeof($leaf_names)) {
 		foreach($leaf_names as $leaf_name) {
-			$title .= $title_delimeter . '<strong>' . __('Leaf:') . '</strong> ' . html_escape($leaf_name);
-			$title_delimeter = '-> ';
+			$title .= $title_delimiter . '<strong>' . __('Leaf:') . '</strong> ' . html_escape($leaf_name);
+			$title_delimiter = '-> ';
 		}
 	}
 
 	if ($host_template_name != '') {
-		$title .= $title_delimeter . '<strong>' . __('Device Template:') . '</strong> ' . html_escape($host_template_name);
-		$title_delimeter = '-> ';
+		$title .= $title_delimiter . '<strong>' . __('Device Template:') . '</strong> ' . html_escape($host_template_name);
+		$title_delimiter = '-> ';
 	}
 
 	if ($host_name != '') {
-		$title .= $title_delimeter . '<strong>' . __('Device:') . '</strong> ' . html_escape($host_name);
-		$title_delimeter = '-> ';
+		$title .= $title_delimiter . '<strong>' . __('Device:') . '</strong> ' . html_escape($host_name);
+		$title_delimiter = '-> ';
 	}
 
 	if ($host_group_data_name != '') {
-		$title .= $title_delimeter . " $host_group_data_name";
-		$title_delimeter = '-> ';
+		$title .= $title_delimiter . " $host_group_data_name";
+		$title_delimiter = '-> ';
 	}
 
-	html_start_box(__('Graph Filters') . (get_request_var('rfilter') != '' ? " [ " . __('Filter') . " '" . html_escape(get_request_var('rfilter')) . "' " . __('Applied') . " ]" : ''), '100%', "", '3', 'center', '');
+	html_start_box(__('Graph Filters') . (get_request_var('rfilter') != '' ? " [ " . __('Filter') . " '" . html_escape_request_var('rfilter') . "' " . __('Applied') . " ]" : ''), '100%', "", '3', 'center', '');
 
 	?>
 	<tr class='even noprint' id='search'>
@@ -973,7 +973,7 @@ function grow_right_pane_tree($tree_id, $leaf_id, $host_group_data) {
 						<?php print __('Search');?>
 					</td>
 					<td>
-						<input type='text' class='ui-state-default ui-corner-all' id='rfilter' size='30' value='<?php print html_escape_request_var('rfilter');?>'>
+						<input type='text' class='ui-state-default ui-corner-all' id='rfilter' size='55' value='<?php print html_escape_request_var('rfilter');?>'>
 					</td>
 					<td>
 						<?php print __('Template');?>
@@ -1073,9 +1073,10 @@ function grow_right_pane_tree($tree_id, $leaf_id, $host_group_data) {
 					<td>
 						<select id='predefined_timespan' onChange='applyGraphTimespan()'>
 							<?php
-							$graph_timespans[GT_CUSTOM] = __('Custom');
+							$graph_timespans = array_merge(array(GT_CUSTOM => __('Custom')), $graph_timespans);
+
 							$start_val = 0;
-							$end_val = cacti_sizeof($graph_timespans);
+							$end_val   = cacti_sizeof($graph_timespans);
 
 							if (cacti_sizeof($graph_timespans)) {
 								foreach($graph_timespans as $value => $text) {
@@ -1273,7 +1274,7 @@ function grow_right_pane_tree($tree_id, $leaf_id, $host_group_data) {
 		$sql_where = '';
 
 		if (get_request_var('rfilter') != '') {
-			$sql_where .= ' (gtg.title_cache RLIKE ' . db_qstr(get_request_var('rfilter')) . ' OR gtg.title RLIKE ' . db_qstr(get_request_var('rfilter')) . ')';
+			$sql_where .= ' (gtg.title_cache RLIKE "' . get_request_var('rfilter') . '" OR gtg.title RLIKE "' . get_request_var('rfilter') . '")';
 		}
 
 		if (isset_request_var('graph_template_id') && get_request_var('graph_template_id') >= 0) {
@@ -1324,7 +1325,7 @@ function grow_right_pane_tree($tree_id, $leaf_id, $host_group_data) {
 		}
 
 		if (get_request_var('rfilter') != '') {
-			$sql_where .= ($sql_where != '' ? ' AND ':'') . '(gtg.title_cache RLIKE ' . db_qstr(preg_quote(get_request_var('rfilter'))) . ')';
+			$sql_where .= ($sql_where != '' ? ' AND ':'') . '(gtg.title_cache RLIKE "' . get_request_var('rfilter') . '")';
 		}
 
 		if (isset_request_var('graph_template_id') && get_request_var('graph_template_id') >= 0) {
@@ -1440,7 +1441,7 @@ function get_host_graph_list($host_id, $graph_template_id, $data_query_id, $host
 		if (cacti_sizeof($final_templates)) {
 			$sql_where = '';
 			if (get_request_var('rfilter') != '') {
-				$sql_where = ' (gtg.title_cache RLIKE ' . db_qstr(preg_quote(get_request_var('rfilter'))) . ')';
+				$sql_where = ' (gtg.title_cache RLIKE "' . get_request_var('rfilter') . '")';
 			}
 
 			if ($host_id > 0) {
@@ -1510,7 +1511,7 @@ function get_host_graph_list($host_id, $graph_template_id, $data_query_id, $host
 				$sfd = get_formatted_data_query_indexes($host_id, $data_query['id']);
 
 				if (get_request_var('rfilter') != '') {
-					$sql_where = ' (gtg.title_cache RLIKE ' . db_qstr(preg_quote(get_request_var('rfilter'))) . ')';
+					$sql_where = ' (gtg.title_cache RLIKE "' . get_request_var('rfilter') . '")';
 				}
 
 				/* grab a list of all graphs for this host/data query combination */

@@ -310,7 +310,7 @@ class Net_Ping
 
 		/* check result for uptime */
 		if ($output !== false && $output != 'U' && strlen($output)) {
-			/* calculte total time */
+			/* calculate total time */
 			$this->snmp_status   = $this->time*1000;
 			$this->snmp_response = 'Device responded to SNMP';
 
@@ -491,7 +491,7 @@ class Net_Ping
 				}
 			}
 
-			/* initilize the socket */
+			/* initialize the socket */
 			if (strpos($host_ip, ':') !== false) {
 				if (defined('AF_INET6')) {
 					if (version_compare(PHP_VERSION, '5.5.4', '<')) {
@@ -530,10 +530,10 @@ class Net_Ping
 					$this->ping_response = __('TCP ping: socket_connect(), reason: %s', socket_strerror($errno));
 					$this->ping_status   = 'down';
 
+					socket_clear_error($this->socket);
+
 					$this->close_socket();
 					$this->restore_cacti_error_handler();
-
-					socket_clear_error($this->socket);
 
 					return false;
 				}

@@ -135,7 +135,7 @@ if (!$foreground) {
 			exit(0);
 		}
 	} else {
-		// On Windows we run in foregroud mode
+		// On Windows we run in foreground mode
 		print '[OK]' . PHP_EOL . '[NOTE] This system does not support forking.' . PHP_EOL;
 	}
 } else {
@@ -252,9 +252,12 @@ function db_check_reconnect() {
 
 	include('./include/config.php');
 
-	if (!isset($database_ssl_key))  $database_ssl_key  = false;
-	if (!isset($database_ssl_cert)) $database_ssl_cert = false;
-	if (!isset($database_ssl_ca))   $database_ssl_ca   = false;
+	if (!isset($database_ssl))      $database_ssl      = false;
+	if (!isset($database_ssl_key))  $database_ssl_key  = '';
+	if (!isset($database_ssl_cert)) $database_ssl_cert = '';
+	if (!isset($database_ssl_ca))   $database_ssl_ca   = '';
+	if (!isset($database_retries))  $database_retries  = 2;
+	if (!isset($database_port))     $database_port     = 3306;
 
 	$version = db_fetch_cell('SELECT cacti FROM version', 'cacti', false);
 

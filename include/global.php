@@ -197,7 +197,7 @@ if (!empty($path_csrf_secret)) {
 }
 
 /* built-in snmp support */
-if (isset($php_snmp_support) && !$php_snmp_support) {
+if ((isset($php_snmp_support) && $php_snmp_support == false) || !function_exists('snmpget')) {
 	$config['php_snmp_support'] = false;
 } else {
 	$config['php_snmp_support'] = class_exists('SNMP');
@@ -468,7 +468,7 @@ if ($config['is_web']) {
 		}
 	}
 
-	/* make sure to start only only Cacti session at a time */
+	/* make sure to start only Cacti session at a time */
 	if (!isset($_SESSION['cacti_cwd'])) {
 		$_SESSION['cacti_cwd'] = $config['base_path'];
 	} else {

@@ -1681,42 +1681,47 @@ function utilities_view_poller_cache() {
 			'filter' => FILTER_VALIDATE_INT,
 			'pageset' => true,
 			'default' => '-1'
-			),
+		),
 		'page' => array(
 			'filter' => FILTER_VALIDATE_INT,
 			'default' => '1'
-			),
+		),
 		'filter' => array(
 			'filter' => FILTER_DEFAULT,
 			'pageset' => true,
 			'default' => '',
 			'options' => array('options' => 'sanitize_search_string')
-			),
+		),
 		'sort_column' => array(
 			'filter' => FILTER_CALLBACK,
 			'default' => 'dtd.name_cache',
 			'options' => array('options' => 'sanitize_search_string')
-			),
+		),
 		'sort_direction' => array(
 			'filter' => FILTER_CALLBACK,
 			'default' => 'ASC',
 			'options' => array('options' => 'sanitize_search_string')
-			),
+		),
 		'host_id' => array(
 			'filter' => FILTER_VALIDATE_INT,
 			'pageset' => true,
 			'default' => '-1'
-			),
+		),
 		'template_id' => array(
 			'filter' => FILTER_VALIDATE_INT,
 			'pageset' => true,
 			'default' => '-1'
-			),
+		),
 		'poller_action' => array(
 			'filter' => FILTER_VALIDATE_INT,
 			'pageset' => true,
 			'default' => '-1'
-			)
+		),
+		'status' => array(
+			'filter' => FILTER_VALIDATE_INT,
+			'pageset' => true,
+			'default' => '-1'
+		)
 	);
 
 	validate_store_request_vars($filters, 'sess_poller');
@@ -1744,6 +1749,7 @@ function utilities_view_poller_cache() {
 		strURL += '&template_id=' + $('#template_id').val();
 		strURL += '&filter=' + $('#filter').val();
 		strURL += '&rows=' + $('#rows').val();
+		strURL += '&status=' + $('#status').val();
 		strURL += '&header=false';
 		loadPageNoHeader(strURL);
 	}
@@ -1825,6 +1831,16 @@ function utilities_view_poller_cache() {
 						<input type='text' class='ui-state-default ui-corner-all' id='filter' size='25' value='<?php print html_escape_request_var('filter');?>'>
 					</td>
 					<td>
+						<?php print __('Status');?>
+					</td>
+					<td>
+						<select id='status' onChange='applyFilter()'>
+							<option value='-1'<?php if (get_request_var('status') == '-1') {?> selected<?php }?>><?php print __('Any');?></option>
+							<option value='1'<?php if (get_request_var('status') == '1') {?> selected<?php }?>><?php print __('Enabled');?></option>
+							<option value='0'<?php if (get_request_var('status') == '0') {?> selected<?php }?>><?php print __('Disabled');?></option>
+						</select>
+					</td>
+					<td>
 						<?php print __('Action');?>
 					</td>
 					<td>
@@ -1883,6 +1899,12 @@ function utilities_view_poller_cache() {
 		$sql_where .= ($sql_where != '' ? ' AND ':'WHERE ') . ' dl.data_template_id=' . get_request_var('template_id');
 	}
 
+	if (get_request_var('status') == 0) {
+		$sql_where .= ($sql_where != '' ? ' AND ':'WHERE ') . ' (h.disabled = "on" OR dtd.active = "")';
+	} elseif (get_request_var('status') == 1) {
+		$sql_where .= ($sql_where != '' ? ' AND ':'WHERE ') . ' (h.disabled = "" AND dtd.active = "on")';
+	}
+
 	if (get_request_var('filter') != '') {
 		$sql_where .= ' AND (
 			dtd.name_cache LIKE '   . db_qstr('%' . get_request_var('filter') . '%') . '
@@ -1895,7 +1917,7 @@ function utilities_view_poller_cache() {
 	$total_rows = db_fetch_cell("SELECT COUNT(*)
 		FROM poller_item AS pi
 		INNER JOIN data_local AS dl
-		ON dl.id=pi.local_data_id
+		ON dl.id = pi.local_data_id
 		INNER JOIN data_template_data AS dtd
 		ON dtd.local_data_id = pi.local_data_id
 		INNER JOIN host AS h
@@ -2124,6 +2146,12 @@ function purge_data_source_statistics() {
 	foreach($tables as $table) {
 		db_execute('TRUNCATE TABLE ' . $table);
 	}
+
+	if (isset($_SESSION['sess_user_id'])) {
+		cacti_log('NOTE: Cacti DS Stats purged by user ' . get_username($_SESSION['sess_user_id']), false, 'WEBUI');
+	} else {
+		cacti_log('NOTE: Cacti DS Stats purged by cli script');
+	}
 }
 
 function boost_display_run_status() {
@@ -2218,15 +2246,25 @@ function boost_display_run_status() {
 		$max_data_length = $table['MAX_DATA_LENGTH'];
 	}
 
-	if ($config['connection'] == 'online') {
+	if ($config['connection'] == 'online' && db_table_exists('poller_output_boost_local_data_ids')) {
 		$pending_ds = db_fetch_cell('SELECT COUNT(local_data_id) FROM poller_output_boost_local_data_ids');
 	} else {
 		$pending_ds = 0;
 	}
 
-	$poller_items = db_fetch_cell('SELECT COUNT(local_data_id) FROM poller_item');
-	$data_sources = db_fetch_cell('SELECT COUNT(DISTINCT local_data_id) FROM poller_item');
-	$pi_ds        = ($data_sources ? ($poller_items / $data_sources) : 0);
+	$poller_items = db_fetch_cell('SELECT COUNT(local_data_id)
+		FROM poller_item AS pi
+		INNER JOIN host AS h
+		ON h.id = pi.host_id
+		WHERE h.disabled = ""');
+
+	$data_sources = db_fetch_cell('SELECT COUNT(DISTINCT local_data_id)
+		FROM poller_item AS pi
+		INNER JOIN host AS h
+		ON h.id = pi.host_id
+		WHERE h.disabled = ""');
+
+	$pi_ds = ($data_sources ? ($poller_items / $data_sources) : 0);
 
 	if ($pending_ds == 0) {
 		$remaining = $arch_records;
@@ -2429,7 +2467,7 @@ function boost_display_run_status() {
 		print '<td class="utilityPick">' . __('Last Run Duration:') . '</td><td>';
 
 		if (is_numeric($boost_last_run_duration)) {
-			print (($boost_last_run_duration > 60) ? __('%d minutes', (int)($boost_last_run_duration/60)) . ', ': '') . __('%d seconds', $boost_last_run_duration%60);
+			print ($boost_last_run_duration > 60 ? __('%d minutes', (int)$boost_last_run_duration / 60) . ', ': '') . __('%d seconds', (int) $boost_last_run_duration % 60);
 
 			if ($rrd_updates != ''){
 				print ' (' . __('%0.2f percent of update frequency)', round(100*$boost_last_run_duration/$update_interval/60));

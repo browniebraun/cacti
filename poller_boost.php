@@ -157,7 +157,7 @@ if ($child == false) {
 
 			/* Wait for all processes to continue */
 			while ($running = boost_processes_running()) {
-				boost_debug(sprintf('%s Processes Runnning, Sleeping for 2 seconds.', $running));
+				boost_debug(sprintf('%s Processes Running, Sleeping for 2 seconds.', $running));
 				sleep(2);
 			}
 
@@ -315,7 +315,7 @@ function boost_prepare_process_table() {
 
 	$delayed_inserts = db_fetch_row("SHOW STATUS LIKE 'Not_flushed_delayed_rows'");
 
-	while ($delayed_inserts['Value']) {
+	while (cacti_sizeof($delayed_inserts) && $delayed_inserts['Value']) {
 		cacti_log('BOOST WAIT: Waiting 1s for delayed inserts are made' , true, 'SYSTEM');
 		usleep(1000000);
 		$delayed_inserts = db_fetch_row("SHOW STATUS LIKE 'Not_flushed_delayed_rows'");
@@ -334,7 +334,7 @@ function boost_prepare_process_table() {
 	$arch_tables = boost_get_arch_table_names();
 
 	if (!cacti_sizeof($arch_tables)) {
-		cacti_log('ERROR: Failed to retrieve archive table name', false, 'BOOST');
+		cacti_log('ERROR: Failed to retrieve archive table name - check poller', false, 'BOOST');
 
 		return false;
 	}
@@ -435,20 +435,6 @@ function boost_launch_children() {
 	}
 
 	sleep(2);
-}
-
-function boost_debug($string) {
-	global $debug, $child;
-
-	$string = 'DEBUG: ' . trim($string, " \n");
-
-	if ($debug) {
-		print $string . PHP_EOL;
-
-		if ($child) {
-			cacti_log($string, false, 'BOOST CHILD');
-		}
-	}
 }
 
 function boost_time_to_run($forcerun, $current_time, $last_run_time, $next_run_time) {
@@ -676,7 +662,7 @@ function boost_process_local_data_ids($last_id, $child, $rrdtool_pipe) {
 	}
 
 	if ($archive_tables === false) {
-		boost_debug('Failed to determine archhive tables');
+		boost_debug('Failed to determine archive tables');
 		cacti_log('Failed to determine archive tables', false, 'BOOST');
 		return 0;
 	}
@@ -731,7 +717,7 @@ function boost_process_local_data_ids($last_id, $child, $rrdtool_pipe) {
 			$item['timestamp'] = trim($item['timestamp']);
 
 			if (!$locked) {
-				/* aquire lock in order to prevent race conditions, only a problem pre-rrdtool 1.5 */
+				/* acquire lock in order to prevent race conditions, only a problem pre-rrdtool 1.5 */
 				while (!db_fetch_cell("SELECT GET_LOCK('boost.single_ds." . $item['local_data_id'] . "', 1)")) {
 					usleep(50000);
 				}
@@ -750,7 +736,7 @@ function boost_process_local_data_ids($last_id, $child, $rrdtool_pipe) {
 
 				$current_lock = false;
 
-				/* aquire lock in order to prevent race conditions, only a problem pre-rrdtool 1.5 */
+				/* acquire lock in order to prevent race conditions, only a problem pre-rrdtool 1.5 */
 				while (!db_fetch_cell("SELECT GET_LOCK('boost.single_ds." . $item['local_data_id'] . "', 1)")) {
 					usleep(50000);
 				}

@@ -467,8 +467,8 @@ function install_setup_get_templates() {
 	@ini_set('zlib.output_compression', '0');
 
 	$templates = array(
+		'Apache_Webserver.xml.gz',
 		'Cacti_Stats.xml.gz',
-		'Cisco_ASA_Appliance.xml.gz',
 		'Cisco_Router.xml.gz',
 		'Citrix_NetScaler_VPX.xml.gz',
 		'Generic_SNMP_Device.xml.gz',
@@ -706,6 +706,17 @@ function install_file_paths() {
 			'unix'  => '/usr/local/spine/bin/spine',
 			'win32' => 'c:/spine/bin/spine.exe'
 		));
+
+	// Workaround to support *BSD systems
+	if ($config['cacti_server_os'] == 'unix') {
+		$paths = array('/usr/local/spine/bin/spine', '/usr/local/bin/spine');
+		foreach($paths as $path) {
+			if (file_exists($path)) {
+				$input['path_spine']['default'] = $path;
+				break;
+			}
+		}
+	}
 
 	$input['path_spine_config'] = $settings['path']['path_spine_config'];
 

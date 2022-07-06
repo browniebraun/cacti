@@ -54,18 +54,17 @@ function get_matching_nodes() {
 		$matching = db_fetch_assoc_prepared("SELECT gti.parent, gti.graph_tree_id
 			FROM graph_tree_items AS gti
 			LEFT JOIN host AS h
-			ON h.id=gti.host_id
-			RIGHT JOIN host AS h2
-			ON h2.site_id=gti.site_id
+			ON h.id = gti.host_id
 			LEFT JOIN graph_templates_graph AS gtg
-			ON gtg.local_graph_id=gti.local_graph_id AND gtg.local_graph_id>0
-			WHERE gtg.title_cache LIKE ?
-			OR h.description LIKE ?
-			OR h2.description LIKE ?
-			OR h.hostname LIKE ?
-			OR h2.hostname LIKE ?
-			OR gti.title LIKE ?",
-			array($filter, $filter, $filter, $filter, $filter, $filter));
+			ON gtg.local_graph_id = gti.local_graph_id
+			LEFT JOIN sites AS s
+			ON s.id = h.site_id
+			WHERE (gtg.local_graph_id > 0 AND gtg.title_cache LIKE ?)
+			OR (h.description LIKE ? AND gti.host_id > 0)
+			OR (h.hostname LIKE ? AND gti.host_id > 0)
+			OR (gti.title LIKE ?)
+			OR (s.name LIKE ? AND gti.site_id > 0)",
+			array($filter, $filter, $filter, $filter, $filter));
 	} else {
 		$matching = db_fetch_assoc("SELECT parent, graph_tree_id FROM graph_tree_items");
 	}
@@ -114,9 +113,9 @@ function get_matching_nodes() {
 			}
 		}
 
-		if (cacti_sizeof($final_array)) {
-			$fa = array();
+		$fa = array();
 
+		if (cacti_sizeof($final_array)) {
 			foreach($final_array as $key => $matches) {
 				foreach($matches as $branch => $dnc) {
 					$fa[] = $branch;
@@ -172,7 +171,8 @@ case 'ajax_reports':
 
 	break;
 case 'update_timespan':
-	// we really don't need to do anything.  The session variables have already been updated
+	$_SESSION['sess_current_date1'] = get_request_var('date1');
+	$_SESSION['sess_current_date2'] = get_request_var('date2');
 
 	break;
 case 'save':
@@ -341,7 +341,7 @@ case 'tree_content':
 	if (isset_request_var('node')) {
 		$parts = explode('-', sanitize_search_string(get_request_var('node')));
 
-		// Check for tree anchoe
+		// Check for tree anchor
 		if (strpos(get_nfilter_request_var('node'), 'tree_anchor') !== false) {
 			$tree_id = $parts[1];
 			$node_id = 0;
@@ -443,7 +443,7 @@ case 'preview':
 	/* create filter for sql */
 	$sql_where  = '';
 	if (!isempty_request_var('rfilter')) {
-		$sql_where .= " gtg.title_cache RLIKE " . db_qstr(get_request_var('rfilter'));
+		$sql_where .= " gtg.title_cache RLIKE '" . get_request_var('rfilter') . "'";
 	}
 
 	$sql_where .= ($sql_or != '' && $sql_where != '' ? ' AND ':'') . $sql_or;
@@ -604,7 +604,7 @@ case 'list':
 						<?php print __('Search');?>
 					</td>
 					<td>
-						<input type='text' class='ui-state-default ui-corner-all' id='rfilter' size='30' value='<?php print html_escape_request_var('rfilter');?>'>
+						<input type='text' class='ui-state-default ui-corner-all' id='rfilter' size='55' value='<?php print html_escape_request_var('rfilter');?>'>
 					</td>
 					<?php html_host_filter(get_request_var('host_id'));?>
 					<td>
@@ -689,7 +689,7 @@ case 'list':
 	/* create filter for sql */
 	$sql_where  = '';
 	if (!isempty_request_var('rfilter')) {
-		$sql_where .= " gtg.title_cache RLIKE " . db_qstr(get_request_var('rfilter'));
+		$sql_where .= " gtg.title_cache RLIKE '" . get_request_var('rfilter') . "'";
 	}
 
 	if (!isempty_request_var('host_id') && get_request_var('host_id') > 0) {
@@ -720,7 +720,7 @@ case 'list':
 			'title_cache' => array(
 				'display' => __('Graph Name'),
 				'align'   => 'left',
-				'tip'     => __('The Title of this Graph.  Generally programatically generated from the Graph Template definition or Suggested Naming rules.  The max length of the Title is controlled under Settings->Visual.')
+				'tip'     => __('The Title of this Graph.  Generally programmatically generated from the Graph Template definition or Suggested Naming rules.  The max length of the Title is controlled under Settings->Visual.')
 			),
 			'local_graph_id' => array(
 				'display' => __('Device'),
@@ -748,7 +748,7 @@ case 'list':
 			'title_cache' => array(
 				'display' => __('Graph Name'),
 				'align'   => 'left',
-				'tip'     => __('The Title of this Graph.  Generally programatically generated from the Graph Template definition or Suggested Naming rules.  The max length of the Title is controlled under Settings->Visual.')
+				'tip'     => __('The Title of this Graph.  Generally programmatically generated from the Graph Template definition or Suggested Naming rules.  The max length of the Title is controlled under Settings->Visual.')
 			),
 			'height' => array(
 				'display' => __('Size'),
@@ -878,20 +878,20 @@ case 'list':
 		strURL = urlPath+'graph_view.php?action=preview';
 		$('#chk').find('select, input').each(function() {
 			switch($(this).attr('id')) {
-			case 'graph_template_id':
-				strURL += '&' + $(this).attr('id') + '=' + $(this).val();
-				break;
-			case 'host_id':
-			case 'rfilter':
-			case 'graph_add':
-			case 'graph_remove':
-			case 'graph_list':
-			case 'style':
-			case 'csrf_magic':
-				strURL += '&' + $(this).attr('id') + '=' + $(this).val();
-				break;
-			default:
-				break;
+				case 'rfilter':
+					strURL += '&' + $(this).attr('id') + '=' + base64_encode($(this).val());
+					break;
+				case 'graph_template_id':
+				case 'host_id':
+				case 'graph_add':
+				case 'graph_remove':
+				case 'graph_list':
+				case 'style':
+				case 'csrf_magic':
+					strURL += '&' + $(this).attr('id') + '=' + $(this).val();
+					break;
+				default:
+					break;
 			}
 		});
 

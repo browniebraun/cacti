@@ -554,7 +554,7 @@ function form_save() {
 				raise_message(20);
 			}
 
-			if (get_filter_request_var('id') == get_guest_account()) {
+			if (get_filter_request_var('id') === get_guest_account()) {
 				raise_message(20);
 			}
 		}
@@ -832,7 +832,7 @@ function graph_perms_edit($tab, $header_label) {
 		/**
 		 * if viewing just the graphs that the user has access to
 		 * we use a custom crafted sql_where clause to calculate
-         * permissions due to the inneficient nature of the HAVING
+         * permissions due to the inefficient nature of the HAVING
 		 * SQL clause.
 		 */
 		if (get_request_var('associated') == 'false') {
@@ -1915,7 +1915,7 @@ function user_edit() {
 				$('#pass').remove();
 				$('#password').after('<span id="pass"><i class="badpassword fa fa-times"></i><span style="padding-left:4px;"><?php print __('Password Too Short')?></span></span>');
 			} else {
-				$.post('user_admin.php?action=checkpass', { password: $('#password').val(), password_confim: $('#password_confirm').val(), __csrf_magic: csrfMagicToken } ).done(function(data) {
+				$.post('user_admin.php?action=checkpass', { password: $('#password').val(), password_confirm: $('#password_confirm').val(), __csrf_magic: csrfMagicToken } ).done(function(data) {
 					if (data == 'ok') {
 						$('#pass').remove();
 						$('#password').after('<span id="pass"><i class="goodpassword fa fa-check"></i><span style="padding-left:4px;"><?php print __('Password Validation Passes');?></span></span>');

@@ -461,7 +461,7 @@ function display_matching_graphs($rule, $rule_type, $url) {
 						</td>
 						<td>
 							<span>
-								<input type='button' class='ui-button ui-corner-all ui-widget' id='refres' value='<?php print __esc('Go');?>'>
+								<input type='button' class='ui-button ui-corner-all ui-widget' id='refresh' value='<?php print __esc('Go');?>'>
 								<input type='button' class='ui-button ui-corner-all ui-widget' id='clear' value='<?php print __esc('Clear');?>'>
 							</span>
 						</td>
@@ -473,7 +473,7 @@ function display_matching_graphs($rule, $rule_type, $url) {
 							<?php print __('Search');?>
 						</td>
 						<td>
-							<input type='text' class='ui-state-defaut ui-corner-all' id='filter' size='25' value='<?php print html_escape_request_var('filter');?>'>
+							<input type='text' class='ui-state-default ui-corner-all' id='filter' size='25' value='<?php print html_escape_request_var('filter');?>'>
 						</td>
 						<td>
 							<?php print __('Devices');?>
@@ -1674,7 +1674,13 @@ function build_rule_item_filter($automation_rule_items, $prefix = '') {
 				#
 				$sql_filter .= ' ' . $automation_op_array['op'][$automation_rule_item['operator']] . ' ';
 				if ($automation_op_array['binary'][$automation_rule_item['operator']]) {
-					$sql_filter .= (db_qstr($automation_op_array['pre'][$automation_rule_item['operator']] . $automation_rule_item['pattern'] . $automation_op_array['post'][$automation_rule_item['operator']]));
+						$query_pattern = $automation_op_array['pre'][$automation_rule_item['operator']] . $automation_rule_item['pattern'] . $automation_op_array['post'][$automation_rule_item['operator']];
+						// Don't escape numeric values with numeric comparison operators
+						if($automation_rule_item['operator'] >= AUTOMATION_OP_LT && $automation_rule_item['operator'] <= AUTOMATION_OP_GE && is_numeric($query_pattern)) {
+							$sql_filter .= $query_pattern;
+						} else {
+							$sql_filter .= db_qstr($query_pattern);
+						}
 				}
 			}
 		}
@@ -1881,7 +1887,7 @@ function get_query_fields($table, $excluded_fields) {
 
 			# we want to know later which table was selected
 			$new_key = $table . '.' . $key;
-			# give the user a hint abou the data type of the column
+			# give the user a hint about the data type of the column
 			$new_fields[$new_key] = strtoupper($table) . ': ' . $key . ' - ' . $value;
 		}
 	}
@@ -2701,7 +2707,7 @@ function create_all_header_nodes($item_id, $rule) {
 	cacti_log($function . " called: Item $item_id matches: " . cacti_sizeof($tree_items) . ' items', false, 'AUTOM8 TRACE', POLLER_VERBOSITY_HIGH);
 
 	/* start at the given tree item
-	 * it may be worth verifying existance of this entry
+	 * it may be worth verifying existence of this entry
 	 * in case it was selected once but then deleted
 	 */
 	$parent_tree_item_id = $rule['tree_item_id'];

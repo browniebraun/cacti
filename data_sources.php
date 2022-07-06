@@ -239,7 +239,7 @@ function form_save() {
 
 		if (!is_error_message()) {
 			/* if this is a new data source and a template has been selected, skip item creation this time
-			otherwise it throws off the templatate creation because of the NULL data */
+			otherwise it throws off the template creation because of the NULL data */
 			if (!isempty_request_var('local_data_id') || isempty_request_var('data_template_id')) {
 				/* if no template was set before the save, there will be only one data source item to save;
 				otherwise there might be >1 */
@@ -1439,7 +1439,7 @@ function ds() {
 						<?php print __('Search');?>
 					</td>
 					<td>
-						<input type='text' class='ui-state-default ui-corner-all' id='rfilter' size='30' value='<?php print html_escape_request_var('rfilter');?>' onChange='applyFilter()'>
+						<input type='text' class='ui-state-default ui-corner-all' id='rfilter' size='55' value='<?php print html_escape_request_var('rfilter');?>' onChange='applyFilter()'>
 					</td>
 					<td>
 						<?php print __('Data Sources');?>
@@ -1513,9 +1513,9 @@ function ds() {
 	if (get_request_var('status') == '-1') {
 		/* Show all items */
 	} elseif (get_request_var('status') == '1') {
-		$sql_where1 .= ($sql_where1 != '' ? ' AND':'WHERE') . ' dtd.active="on"';
+		$sql_where1 .= ($sql_where1 != '' ? ' AND':'WHERE') . ' (dtd.active = "on" AND h.disabled = "")';
 	} elseif (get_request_var('status') == '2') {
-		$sql_where1 .= ($sql_where1 != '' ? ' AND':'WHERE') . ' dtd.active=""';
+		$sql_where1 .= ($sql_where1 != '' ? ' AND':'WHERE') . ' (dtd.active = "" OR h.disabled != "")';
 	} elseif (get_request_var('status') == '3') {
 		$sql_where1 .= ($sql_where1 != '' ? ' AND':'WHERE') . ' (dl.snmp_index = "" AND dl.snmp_query_id > 0)';
 	}
@@ -1579,7 +1579,7 @@ function ds() {
 			INNER JOIN data_template_data AS dtd
 			ON dl.id=dtd.local_data_id
 			LEFT JOIN data_template AS dt
-			ON dt.id=dl.data_template_id
+			ON dt.id = dl.data_template_id
 			LEFT JOIN host AS h
 			ON h.id = dl.host_id
 			$sql_where1");
@@ -1590,7 +1590,7 @@ function ds() {
 			INNER JOIN data_template_data AS dtd
 			ON dl.id=dtd.local_data_id
 			LEFT JOIN data_template AS dt
-			ON dt.id=dl.data_template_id
+			ON dt.id = dl.data_template_id
 			LEFT JOIN host AS h
 			ON h.id = dl.host_id
 			$sql_where1
@@ -1611,7 +1611,7 @@ function ds() {
 			'display' => __('Data Source Name'),
 			'align'   => 'left',
 			'sort'    => 'ASC',
-			'tip'     => __('The name of this Data Source. Generally programtically generated from the Data Template definition.')
+			'tip'     => __('The name of this Data Source. Generally programmatically generated from the Data Template definition.')
 		),
 		'local_data_id' => array(
 			'display' => __('ID'),

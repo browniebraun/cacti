@@ -2118,7 +2118,7 @@ function test_data_source($data_template_id, $host_id, $snmp_query_id = 0, $snmp
 			$outputs_sql = 'SELECT DISTINCT ' . SQL_NO_CACHE . "
 				sqgr.snmp_field_name, dtr.id as data_template_rrd_id
 				FROM snmp_query_graph_rrd AS sqgr
-				INNER JOIN data_template_rrd AS dtr FORCE INDEX (local_data_id)
+				INNER JOIN data_template_rrd AS dtr
 				ON sqgr.data_template_rrd_id = dtr.id
 				WHERE sqgr.data_template_id = ?
 				AND dtr.local_data_id = 0
@@ -3535,7 +3535,7 @@ function draw_login_status($using_guest_account = false) {
 	$guest_account = get_guest_account();
 	$auth_method   = read_config_option('auth_method');
 
-	if (isset($_SESSION['sess_user_id']) && $_SESSION['sess_user_id'] == $guest_account) {
+	if (isset($_SESSION['sess_user_id']) && $_SESSION['sess_user_id'] === $guest_account) {
 		api_plugin_hook('nav_login_before');
 
 		print __('Logged in as') . " <span id='user' class='user usermenuup'>". __('guest') . "</span></div><div><ul class='menuoptions' style='display:none;'>" . ($auth_method != 2 ? "<li><a href='" . $config['url_path'] . "index.php?login=true'>" . __('Login as Regular User') . "</a></li>":"<li><a href='#'>" . __('Logged in a Guest') . '</a></li>');
@@ -3780,7 +3780,7 @@ function draw_navigation_text($type = 'url') {
 		$tree_title = '';
 	}
 
-	// Finally create a navitagion title
+	// Finally create a navigation title
 	if (isset($current_array['title'])) {
 		$title .= html_escape(resolve_navigation_variables($current_array['title']) . ' ' . $tree_title);
 	}
@@ -5740,7 +5740,8 @@ function IgnoreErrorHandler($message) {
 		'Timeout',
 		'Unknown host',
 		'Invalid object identifier',
-		'Name or service not known'
+		'Name or service not known',
+		'USM generic error in file',
 	);
 
 	foreach ($snmp_ignore as $i) {
@@ -6589,7 +6590,7 @@ function get_running_user() {
 			}
 		}
 
-		// Falback method
+		// Fallback method
 		if (empty($tmp_user)) {
 			$user = getenv('USERNAME');
 			if ($user != '') {
@@ -7012,21 +7013,25 @@ function cacti_time_zone_set($gmt_offset) {
 		$_SESSION['sess_system_tz'] = getenv('TZ');
 	}
 
+	$zone = timezone_name_from_abbr('', $gmt_offset);
+
 	if ($remaining == 0) {
 		putenv('TZ=GMT' . ($hours > 0 ? '-':'+') . abs($hours));
 
-		$php_offset = 'Etc/GMT' . ($hours > 0 ? '-':'+') . abs($hours);
 		$sys_offset = 'GMT' . ($hours > 0 ? '-':'+') . abs($hours);
 
-		ini_set('date.timezone', 'Etc/GMT' . ($hours > 0 ? '-':'+') . abs($hours));
+		if ($zone !== false) {
+			$php_offset = $zone;
+			ini_set('date.timezone', $zone);
+		} else {
+			$php_offset = 'Etc/GMT' . ($hours > 0 ? '-':'+') . abs($hours);
+			ini_set('date.timezone', 'Etc/GMT' . ($hours > 0 ? '-':'+') . abs($hours));
+		}
 
 		$_SESSION['sess_browser_system_tz'] = $sys_offset;
-		$_SESSION['sess_browser_php_tz'] = $php_offset;
+		$_SESSION['sess_browser_php_tz']    = $php_offset;
 	} else {
 		$time = ($hours > 0 ? '-':'+') . abs($hours) . ':' . substr('00' . $remaining, -2);
-
-		// Attempt to get the zone via the php function
-		$zone = timezone_name_from_abbr('', $gmt_offset);
 
 		if ($zone === false) {
 			switch($time) {

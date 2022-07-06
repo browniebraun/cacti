@@ -672,7 +672,7 @@ function form_actions() {
 				// 		$i++;
 				// 	}
 
-				/* save aggregate graph graph items */
+				/* save aggregate graph - graph items */
 				if (get_request_var('drp_action') == '9') {
 					/* get existing item ids and sequences from graph template */
 					$graph_templates_items = array_rekey(
@@ -2031,7 +2031,7 @@ function graph_management() {
 						<?php print __('Search');?>
 					</td>
 					<td>
-						<input type='text' class='ui-state-default ui-corner-all' id='rfilter' size='30' value='<?php print html_escape_request_var('rfilter');?>'>
+						<input type='text' class='ui-state-default ui-corner-all' id='rfilter' size='55' value='<?php print html_escape_request_var('rfilter');?>'>
 					</td>
 					<td>
 						<?php print __('Graphs');?>
@@ -2194,7 +2194,7 @@ function graph_management() {
 			'display' => __('Graph Name'),
 			'align'   => 'left',
 			'sort'    => 'ASC',
-			'tip'     => __('The Title of this Graph.  Generally programatically generated from the Graph Template definition or Suggested Naming rules.  The max length of the Title is controlled under Settings->Visual.')
+			'tip'     => __('The Title of this Graph.  Generally programmatically generated from the Graph Template definition or Suggested Naming rules.  The max length of the Title is controlled under Settings->Visual.')
 		),
 		'local_graph_id' => array(
 			'display' => __('ID'),

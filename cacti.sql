@@ -1314,8 +1314,8 @@ CREATE TABLE `data_debug` (
   `done` int(11) NOT NULL default '0',
   `user` int(11) NOT NULL default '0',
   `datasource` int(11) NOT NULL default '0',
-  `info` text NOT NULL default '',
-  `issue` text NOT NULL NULL default '',
+  `info` text NOT NULL,
+  `issue` text NOT NULL,
   PRIMARY KEY (`id`),
   KEY `user` (`user`),
   KEY `done` (`done`),
@@ -1358,8 +1358,7 @@ INSERT INTO `data_source_profiles` VALUES (3,'66d35da8f75c912ede3dbe901fedcae0',
 CREATE TABLE `data_source_profiles_cf` (
   `data_source_profile_id` mediumint(8) unsigned NOT NULL DEFAULT '0',
   `consolidation_function_id` smallint(5) unsigned NOT NULL DEFAULT '0',
-  PRIMARY KEY (`data_source_profile_id`,`consolidation_function_id`),
-  KEY `data_source_profile_id` (`data_source_profile_id`)
+  PRIMARY KEY (`data_source_profile_id`,`consolidation_function_id`)
 ) ENGINE=InnoDB ROW_FORMAT=Dynamic COMMENT='Maps the Data Source Profile Consolidation Functions';
 
 --
@@ -1605,7 +1604,6 @@ CREATE TABLE data_template_rrd (
   data_input_field_id mediumint(8) unsigned NOT NULL default '0',
   PRIMARY KEY (id),
   UNIQUE KEY `duplicate_dsname_contraint` (`local_data_id`,`data_source_name`,`data_template_id`),
-  KEY local_data_id (local_data_id),
   KEY data_template_id (data_template_id),
   KEY local_data_template_rrd_id (local_data_template_rrd_id)
 ) ENGINE=InnoDB ROW_FORMAT=Dynamic;
@@ -1674,8 +1672,7 @@ CREATE TABLE graph_template_input (
 CREATE TABLE graph_template_input_defs (
   graph_template_input_id int(10) unsigned NOT NULL default '0',
   graph_template_item_id int(12) unsigned NOT NULL default '0',
-  PRIMARY KEY (graph_template_input_id,graph_template_item_id),
-  KEY graph_template_input_id (graph_template_input_id)
+  PRIMARY KEY (graph_template_input_id,graph_template_item_id)
 ) ENGINE=InnoDB ROW_FORMAT=Dynamic COMMENT='Stores the relationship for what graph items are associated';
 
 --
@@ -1959,7 +1956,6 @@ CREATE TABLE host (
   last_updated timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY poller_id_disabled (poller_id, disabled),
-  KEY site_id (site_id),
   KEY external_id (external_id),
   KEY disabled (disabled),
   KEY status (status),
@@ -2023,8 +2019,7 @@ CREATE TABLE host_snmp_query (
   sort_field varchar(50) NOT NULL default '',
   title_format varchar(50) NOT NULL default '',
   reindex_method tinyint(3) unsigned NOT NULL default '0',
-  PRIMARY KEY (host_id,snmp_query_id),
-  KEY host_id (host_id)
+  PRIMARY KEY (host_id,snmp_query_id)
 ) ENGINE=InnoDB ROW_FORMAT=Dynamic;
 
 --
@@ -2054,8 +2049,7 @@ CREATE TABLE host_template (
 CREATE TABLE host_template_graph (
   host_template_id mediumint(8) unsigned NOT NULL default '0',
   graph_template_id mediumint(8) unsigned NOT NULL default '0',
-  PRIMARY KEY (host_template_id,graph_template_id),
-  KEY host_template_id (host_template_id)
+  PRIMARY KEY (host_template_id,graph_template_id)
 ) ENGINE=InnoDB ROW_FORMAT=Dynamic;
 
 --
@@ -2069,8 +2063,7 @@ CREATE TABLE host_template_graph (
 CREATE TABLE host_template_snmp_query (
   host_template_id mediumint(8) unsigned NOT NULL default '0',
   snmp_query_id mediumint(8) unsigned NOT NULL default '0',
-  PRIMARY KEY (host_template_id, snmp_query_id),
-  KEY host_template_id (host_template_id)
+  PRIMARY KEY (host_template_id, snmp_query_id)
 ) ENGINE=InnoDB ROW_FORMAT=Dynamic;
 
 --
@@ -2240,7 +2233,7 @@ CREATE TABLE poller_item (
   `rrd_num` tinyint(2) unsigned NOT NULL default '0',
   `rrd_step` mediumint(8) NOT NULL default '300',
   `rrd_next_step` mediumint(8) NOT NULL default '0',
-  `arg1` TEXT default NULL,
+  `arg1` TEXT,
   `arg2` varchar(255) default NULL,
   `arg3` varchar(255) default NULL,
   PRIMARY KEY (`local_data_id`,`rrd_name`),
@@ -2374,7 +2367,6 @@ CREATE TABLE `processes` (
   `last_update` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`pid`,`tasktype`,`taskname`,`taskid`),
   KEY `tasktype` (`tasktype`),
-  KEY `pid` (`pid`),
   KEY `id` (`id`)
 ) ENGINE=MEMORY COMMENT='Stores Process Status for Cacti Background Processes';
 
@@ -2411,7 +2403,7 @@ CREATE TABLE `reports` (
   KEY `mailtime` (`mailtime`)) 
   ENGINE=InnoDB 
   ROW_FORMAT=Dynamic
-  COMMENT='Cacri Reporting Reports';
+  COMMENT='Cacti Reporting Reports';
 
 --
 -- Table structure for table `reports_items`
@@ -2550,8 +2542,7 @@ CREATE TABLE snmp_query_graph_rrd (
   data_template_rrd_id int(10) unsigned NOT NULL default '0',
   snmp_field_name varchar(50) NOT NULL default '0',
   PRIMARY KEY (snmp_query_graph_id,data_template_id,data_template_rrd_id),
-  KEY data_template_rrd_id (data_template_rrd_id),
-  KEY snmp_query_graph_id (snmp_query_graph_id)
+  KEY data_template_rrd_id (data_template_rrd_id)
 ) ENGINE=InnoDB ROW_FORMAT=Dynamic;
 
 --
@@ -2791,6 +2782,8 @@ INSERT INTO user_auth_realm VALUES (23,1);
 INSERT INTO user_auth_realm VALUES (24,1);
 INSERT INTO user_auth_realm VALUES (25,1);
 INSERT INTO user_auth_realm VALUES (26,1);
+INSERT INTO user_auth_realm VALUES (27,1);
+INSERT INTO user_auth_realm VALUES (28,1);
 INSERT INTO user_auth_realm VALUES (101,1);
 INSERT INTO user_auth_realm VALUES (1043,1);
 
@@ -2962,9 +2955,8 @@ CREATE TABLE `snmpagent_cache_notifications` (
   `mib` varchar(50) NOT NULL,
   `attribute` varchar(50) NOT NULL,
   `sequence_id` smallint(6) NOT NULL,
-  PRIMARY KEY (`name`,`mib`,`attribute`,`sequence_id`),
-  KEY `name` (`name`)
-) ENGINE=InnoDB ROW_FORMAT=Dynamic COMMENT='Notifcations and related attributes';
+  PRIMARY KEY (`name`,`mib`,`attribute`,`sequence_id`)
+) ENGINE=InnoDB ROW_FORMAT=Dynamic COMMENT='Notifications and related attributes';
 
 --
 -- Dumping data for table `snmpagent_cache_notifications`
@@ -2980,7 +2972,6 @@ CREATE TABLE `snmpagent_cache_textual_conventions` (
   `type` varchar(50) NOT NULL DEFAULT '',
   `description` varchar(5000) NOT NULL DEFAULT '',
   PRIMARY KEY (`name`,`mib`,`type`),
-  KEY `name` (`name`),
   KEY `mib` (`mib`)
 ) ENGINE=InnoDB ROW_FORMAT=Dynamic COMMENT='Textual conventions';
 
@@ -3026,8 +3017,7 @@ CREATE TABLE `snmpagent_managers_notifications` (
   `notification` varchar(50) NOT NULL,
   `mib` varchar(50) NOT NULL,
   PRIMARY KEY(`manager_id`,`notification`,`mib`),
-  KEY `mib` (`mib`),
-  KEY `manager_id_notification` (`manager_id`,`notification`)
+  KEY `mib` (`mib`)
 ) ENGINE=InnoDB ROW_FORMAT=Dynamic COMMENT='snmp notifications to receivers';
 
 --

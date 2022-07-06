@@ -317,7 +317,7 @@ $.fn.classes = function(callback) {
 };
 
 /** These three functions will set the cursor into
- *  a textbox or textara and optionally select characters */
+ *  a textbox or textarea and optionally select characters */
 $.fn.setCursorPosition = function(position) {
 	if (this.length == 0) return this;
 	return this.setSelection(position, position);
@@ -717,7 +717,7 @@ function cactiReturnTo(href) {
 }
 
 /** applySkin - This function re-asserts all javascript behavior to a page
- *  that can't be set using a live attrbute 'on()' */
+ *  that can't be set using a live attribute 'on()' */
 function applySkin() {
 	pageName = basename($(location).attr('pathname'));
 
@@ -761,6 +761,11 @@ function applySkin() {
 	ajaxAnchors();
 
 	applySelectorVisibilityAndActions();
+
+	$('.helpPage').off('click').on('click', function(event) {
+		event.stopPropagation();
+		getCactiHelp($(this).attr('data-page'));
+	});
 
 	if (typeof themeReady == 'function') {
 		themeReady();
@@ -1360,6 +1365,39 @@ function getMainWidth() {
 	}
 
 	return mainWidth;
+}
+
+function getCactiHelp(cactiPage) {
+	var privateUrl = urlPath + 'help.php?page=' + cactiPage;
+	var cactiPagePublic = cactiPage.replace('.html', '.md');
+	var publicUrl  = 'https://docs.cacti.net/' + cactiPagePublic;
+
+	$.get(publicUrl)
+		.done(function(data, status, xhr) {
+			if (status == 'success' && ! data.includes('content you requested does not appear to exist')) {
+				window.open(publicUrl, '_blank');
+			} else {
+				$.getJSON(privateUrl + '&error=missing', function(data) {
+					sessionMessage   = {
+						message: data.message,
+						level: MESSAGE_LEVEL_ERROR
+					};
+
+					displayMessages();
+				});
+			}
+		})
+		.fail(function(status, xhr) {
+			$.getJSON(privateUrl + '&error=unreach', function(data) {
+				sessionMessage   = {
+					message: data.message,
+					level: MESSAGE_LEVEL_ERROR
+				};
+
+				displayMessages();
+			});
+		}
+	);
 }
 
 function responsiveResizeGraphs(initialize) {
@@ -3001,7 +3039,7 @@ function keepWindowSize() {
 
 			responsiveResizeGraphs();
 
-			/* close open dropdown menues first off */
+			/* close open dropdown menus first off */
 			$('.dropdownMenu > ul').hide();
 
 			if ($('#gtabs > .tabs').is(':visible')) {
@@ -3963,7 +4001,7 @@ $.widget('custom.dropcolor', {
 		if (hex != null) {
 			this.wrapper.find('#bgc').css('background-color', '#'+hex[1]);
 		}
-		this.input = $('<input class="ui-autocomplete-input ui-state-default ui-selectmenut-text" style="background:transparent;border:0px;margin-left:-22px;padding:0px 3px 0px 22px;" value="'+value+'">')
+		this.input = $('<input class="ui-autocomplete-input ui-state-default ui-selectmenu-text" style="background:transparent;border:0px;margin-left:-22px;padding:0px 3px 0px 22px;" value="'+value+'">')
 		.appendTo(this.wrapper)
 		.on('click', function() {
 			$(this).autocomplete('search', '');

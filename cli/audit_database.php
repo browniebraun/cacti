@@ -35,12 +35,12 @@ if ($config['poller_id'] > 1) {
 $parms = $_SERVER['argv'];
 array_shift($parms);
 
-$upgrade = false;
-$create  = false;
-$load    = false;
-$report  = false;
-$repair  = false;
-$alters  = false;
+$upgrade    = false;
+$create     = false;
+$loadopt    = false;
+$report     = false;
+$repair     = false;
+$altersopt  = false;
 
 if (cacti_sizeof($parms)) {
 	$shortopts = 'VvHh';
@@ -65,7 +65,7 @@ if (cacti_sizeof($parms)) {
 			break;
 
 		case 'load':
-			$load = true;
+			$loadopt = true;
 
 			break;
 		case 'report':
@@ -77,7 +77,7 @@ if (cacti_sizeof($parms)) {
 
 			break;
 		case 'alters':
-			$alters = true;
+			$altersopt = true;
 
 			break;
 		case 'upgrade':
@@ -102,7 +102,7 @@ if (cacti_sizeof($parms)) {
 	}
 
 	$db_version = db_fetch_cell('SELECT cacti FROM version');
-	if ($db_version != CACTI_VERSION && !isset($options['upgrade'])) {
+	if ($db_version != CACTI_VERSION && !$upgrade) {
 		$upgrade_required = true;
 	} else {
 		$upgrade_required = false;
@@ -111,7 +111,7 @@ if (cacti_sizeof($parms)) {
 	if ($upgrade_required) {
 		print 'WARNING: Cacti must be upgraded first.  Use the --upgrade option to perform that upgrade' . PHP_EOL;
 		exit(1);
-	} elseif ($db_version != CACTI_VERSION && isset($options['upgrade'])) {
+	} elseif ($db_version != CACTI_VERSION && $$upgrade) {
 		upgrade_database();
 	}
 
@@ -121,10 +121,12 @@ if (cacti_sizeof($parms)) {
 		create_tables();
 	} elseif ($report) {
 		report_audit_results();
-	} elseif ($alters) {
+	} elseif ($altersopt) {
 		repair_database(false);
-	} elseif ($load) {
+	} elseif ($loadopt) {
 		load_audit_database();
+	} else {
+		display_help();
 	}
 
 	exit(0);
@@ -308,6 +310,8 @@ function plugin_installed($plugin) {
 }
 
 function repair_database($run = true) {
+	global $altersopt;
+
 	$alters = report_audit_results(false);
 
 	$good = 0;
@@ -315,16 +319,16 @@ function repair_database($run = true) {
 
 	if (cacti_sizeof($alters)) {
 		foreach($alters as $table => $changes) {
-			$engine = db_fetch_cell_prepared('SELECT ENGINE
+			$tblinfo = db_fetch_row_prepared('SELECT ENGINE, SUBSTRING_INDEX(TABLE_COLLATION, "_", 1) AS COLLATION
 				FROM information_schema.tables
 				WHERE TABLE_SCHEMA="cacti"
 				AND TABLE_NAME = ?',
 				array($table));
 
-			if ($engine = 'MyISAM') {
-				$suffix = ",\n   ENGINE=InnoDB ROW_FORMAT=Dynamic CHARSET=utf8mb4";
+			if ($tblinfo['ENGINE'] = 'MyISAM') {
+				$suffix = ",\n   ENGINE=InnoDB ROW_FORMAT=Dynamic CHARSET=" . $tblinfo['COLLATION'];
 			} else {
-				$suffix = ",\n   ROW_FORMAT=Dynamic CHARSET=utf8mb4";
+				$suffix = ",\n   ROW_FORMAT=Dynamic CHARSET=" . $tblinfo['COLLATION'];
 			}
 
 			$sql = 'ALTER TABLE `' . $table . "`\n   " . implode(",\n   ", $changes) . $suffix . ';';
@@ -345,7 +349,7 @@ function repair_database($run = true) {
 				}
 			} else {
 				print '---------------------------------------------------------------------------------------------' . PHP_EOL;
-				print 'Proposed Alter for Table : ' . $table . PHP_EOL . PHP_EOL;
+				print '-- Proposed Alter for Table : ' . $table . PHP_EOL . PHP_EOL;
 				print $sql . PHP_EOL . PHP_EOL;
 			}
 		}
@@ -353,7 +357,7 @@ function repair_database($run = true) {
 
 	print '---------------------------------------------------------------------------------------------' . PHP_EOL;
 	if ($bad == 0 && $good == 0) {
-		print 'Repair Completed!  No changes performed.' . PHP_EOL;
+		print ($altersopt ? '-- ' : '') . 'Repair Completed!  No changes performed.' . PHP_EOL;
 	} elseif ($bad) {
 		print 'Repair Completed!  ' . $good . ' Alters succeeded and ' . $bad . ' failed!' . PHP_EOL;
 	} else {
@@ -362,7 +366,8 @@ function repair_database($run = true) {
 }
 
 function report_audit_results($output = true) {
-	global $database_default;
+	global $database_default, $altersopt;
+
 	$db_name = 'Tables_in_' . $database_default;
 
 	create_tables();
@@ -405,7 +410,7 @@ function report_audit_results($output = true) {
 				print '---------------------------------------------------------------------------------------------' . PHP_EOL;
 				printf('Checking Table: %-45s', '\'' . $table_name . '\'');
 			} else {
-				printf('Scanning Table: %-45s', '\'' . $table_name . '\'');
+				printf(($altersopt ? '-- ' : '') . 'Scanning Table: %-45s', '\'' . $table_name . '\'');
 			}
 
 			$table_exists = db_fetch_cell_prepared('SELECT COUNT(*)
@@ -492,7 +497,7 @@ function report_audit_results($output = true) {
 								$c[$col]     = str_replace('current_timestamp()', 'CURRENT_TIMESTAMP', $c[$col]);
 								$dbc[$dbcol] = str_replace('current_timestamp()', 'CURRENT_TIMESTAMP',$dbc[$dbcol]);
 
-								if ($c[$col] != $dbc[$dbcol] && $text != 'mediumtext') {
+								if ($c[$col] != $dbc[$dbcol] && $c[$col] != 'mediumtext') {
 									if ($output) {
 										if ($col != 'Key') {
 											print PHP_EOL . 'ERROR Col: \'' . $c['Field'] . '\', Attribute \'' . $col . '\' invalid. Should be: \'' . $dbc[$dbcol] . '\', Is: \'' . $c[$col] . '\'';
@@ -628,7 +633,7 @@ function report_audit_results($output = true) {
 
 							$curr_seq = get_sequence_count($table_name, $i['idx_key_name']);
 
-							$curr_column_seq = get_colunm_sequence_number($table_name, $i['idx_key_name'], $i['idx_column_name']);
+							$curr_column_seq = get_column_sequence_number($table_name, $i['idx_key_name'], $i['idx_column_name']);
 
 							//print PHP_EOL . "Prop Seq:" . $prop_seq . ", Curr Seq:" . $curr_seq . PHP_EOL;
 
@@ -672,7 +677,7 @@ function report_audit_results($output = true) {
 	if ($output) {
 		print '---------------------------------------------------------------------------------------------' . PHP_EOL;
 		if (cacti_sizeof($alters)) {
-			print 'ERRORS are fixable using the --repair option.  WARNINGS will not be rapaired' . PHP_EOL;
+			print 'ERRORS are fixable using the --repair option.  WARNINGS will not be repaired' . PHP_EOL;
 			print 'due to ambiguous use of the column.' . PHP_EOL;
 		} else {
 			print 'Audit was clean, no errors or warnings' . PHP_EOL;
@@ -839,7 +844,7 @@ function get_sequence_count($table, $index) {
 	return $sequence_cnt;
 }
 
-function get_colunm_sequence_number($table, $index, $column) {
+function get_column_sequence_number($table, $index, $column) {
 	$indexes = db_fetch_assoc("SHOW INDEXES IN $table");
 
 	if (cacti_sizeof($indexes)) {
@@ -859,6 +864,7 @@ function get_colunm_sequence_number($table, $index, $column) {
 
 function create_tables($load = true) {
 	global $config, $database_default, $database_username, $database_password, $database_port, $database_hostname;
+	global $altersopt;
 
 	db_execute("CREATE TABLE IF NOT EXISTS table_columns (
 		table_name varchar(50) NOT NULL,
@@ -876,7 +882,7 @@ function create_tables($load = true) {
 	$exists_columns = db_table_exists('table_columns');
 
 	if (!$exists_columns) {
-		print "Failed to create 'table_coluns'";
+		print "Failed to create 'table_columns'";
 		exit;
 	}
 
@@ -921,7 +927,7 @@ function create_tables($load = true) {
 				' < ' . $config['base_path'] . '/docs/audit_schema.sql', $output, $error);
 
 			if ($error == 0) {
-				print 'SUCCESS: Loaded the Audit Schema' . PHP_EOL;
+				print ($altersopt ? '-- ' : '') . 'SUCCESS: Loaded the Audit Schema' . PHP_EOL;
 			} else {
 				print 'FATAL: Failed Load the Audit Schema' . PHP_EOL;
 				print 'ERROR: ' . implode(",\n   ", $output) . PHP_EOL;

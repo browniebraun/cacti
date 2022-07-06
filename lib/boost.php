@@ -241,7 +241,7 @@ function boost_fetch_cache_check($local_data_id, $rrdtool_pipe = false) {
 	global $config;
 
 	if (read_config_option('boost_rrd_update_enable') == 'on') {
-		/* include poller processing routinges */
+		/* include poller processing routines */
 		include_once($config['library_path'] . '/poller.php');
 
 		/* check to see if boost can do its job */
@@ -299,7 +299,7 @@ function boost_return_cached_image(&$graph_data_array) {
 function boost_graph_cache_check($local_graph_id, $rra_id, $rrdtool_pipe, &$graph_data_array, $return = true) {
 	global $config;
 
-	/* include poller processing routinges */
+	/* include poller processing routines */
 	include_once($config['library_path'] . '/poller.php');
 
 	/* suppressnwarnings */
@@ -380,7 +380,7 @@ function boost_graph_cache_check($local_graph_id, $rra_id, $rrdtool_pipe, &$grap
 	 */
 	if (boost_return_cached_image($graph_data_array)) {
 		/* if timespan is greater than 1, it is a predefined, if it does not
-		 * exist, it is the old fasioned MRTG type graph
+		 * exist, it is the old fashioned MRTG type graph
 		 */
 		$cache_directory = read_config_option('boost_png_cache_directory');
 
@@ -500,7 +500,7 @@ function boost_graph_set_file(&$output, $local_graph_id, $rra_id) {
 	}
 
 	/* check the graph cache and use it if it is valid, otherwise turn over to
-	 * cacti's graphing fucntions.
+	 * cacti's graphing functions.
 	 */
 	if ((read_config_option('boost_png_cache_enable')) && (boost_determine_caching_state())) {
 		$cache_directory = read_config_option('boost_png_cache_directory');
@@ -631,7 +631,7 @@ function boost_process_poller_output($local_data_id = '', $rrdtool_pipe = '') {
 	/* install the boost error handler */
 	set_error_handler('boost_error_handler');
 
-	/* aquire lock in order to prevent race conditions */
+	/* acquire lock in order to prevent race conditions */
 	while (!db_fetch_cell("SELECT GET_LOCK('boost.single_ds.$local_data_id', 1)")) {
 		usleep(50000);
 	}
@@ -757,7 +757,12 @@ function boost_process_poller_output($local_data_id = '', $rrdtool_pipe = '') {
 				boost_timer('rrd_filename_and_template', BOOST_TIMER_END);
 
 				boost_timer('rrd_lastupdate', BOOST_TIMER_START);
-				$last_update = boost_rrdtool_get_last_update_time($rrd_path, $rrdtool_pipe);
+				if (cacti_version_compare(get_rrdtool_version(), '1.5', '<')) {
+					$last_update = boost_rrdtool_get_last_update_time($rrd_path, $rrdtool_pipe);
+				} else {
+					$last_update = 0;
+				}
+
 				boost_timer('rrd_lastupdate', BOOST_TIMER_END);
 
 				$local_data_id  = $item['local_data_id'];
@@ -1145,18 +1150,18 @@ function boost_rrdtool_function_create($local_data_id, $show_source, &$rrdtool_p
 	   exists and if not create it.
 	 */
 	if (read_config_option('extended_paths') == 'on') {
-		if (read_config_option('storage_location')) {
+		if (read_config_option('storage_location') > 0) {
 			if (false === rrdtool_execute('is_dir ' . dirname($data_source_path), true, RRDTOOL_OUTPUT_BOOLEAN, $rrdtool_pipe, 'BOOST') ) {
 				if (false === rrdtool_execute('mkdir ' . dirname($data_source_path), true, RRDTOOL_OUTPUT_BOOLEAN, $rrdtool_pipe, 'BOOST') ) {
 					cacti_log("ERROR: Unable to create directory '" . dirname($data_source_path) . "'", false);
 				}
 			}
 		} elseif (!is_dir(dirname($data_source_path))) {
-			if ($config['is_web'] == false) {
+			if ($config['is_web'] == false || is_writable($config['rra_path'])) {
 				if (mkdir(dirname($data_source_path), 0775)) {
 					if ($config['cacti_server_os'] != 'win32') {
-						$owner_id      = fileowner($config['rra_path']);
-						$group_id      = filegroup($config['rra_path']);
+						$owner_id = fileowner($config['rra_path']);
+						$group_id = filegroup($config['rra_path']);
 
 						if ((chown(dirname($data_source_path), $owner_id)) &&
 								(chgrp(dirname($data_source_path), $group_id))) {
@@ -1235,6 +1240,20 @@ function boost_rrdtool_function_update($local_data_id, $rrd_path, $rrd_update_te
 
 function boost_memory_limit() {
 	ini_set('memory_limit', read_config_option('boost_poller_mem_limit') . 'M');
+}
+
+function boost_debug($string) {
+	global $debug, $child;
+
+	$string = 'DEBUG: ' . trim($string, " \n");
+
+	if ($debug) {
+		print $string . PHP_EOL;
+
+		if ($child) {
+			cacti_log($string, false, 'BOOST CHILD');
+		}
+	}
 }
 
 function boost_poller_bottom() {

@@ -133,6 +133,8 @@ $cacti_version_codes = array(
 	'1.2.18'  => '0102',
 	'1.2.19'  => '0103',
 	'1.2.20'  => '0103',
+	'1.2.21'  => '0103',
+	'1.2.22'  => '0103',
 );
 
 $messages = array(
@@ -272,13 +274,13 @@ $messages = array(
 		'message' => __('Data Input Saved.  You must update the Data Templates referencing this Data Input Method before creating Graphs or Data Sources.'),
 		'level' => MESSAGE_LEVEL_INFO),
 	'input_save_w_ds' => array(
-		'message' => __('Data Input Saved.  You must update the Data Templates referencing this Data Input Method before the Data Collectors will start using any new or modified Data Input Input Fields.'),
+		'message' => __('Data Input Saved.  You must update the Data Templates referencing this Data Input Method before the Data Collectors will start using any new or modified Data Input - Input Fields.'),
 		'level' => MESSAGE_LEVEL_INFO),
 	'input_field_save_wo_ds' => array(
 		'message' => __('Data Input Field Saved.  You must update the Data Templates referencing this Data Input Method before creating Graphs or Data Sources.'),
 		'level' => MESSAGE_LEVEL_INFO),
 	'input_field_save_w_ds' => array(
-		'message' => __('Data Input Field Saved.  You must update the Data Templates referencing this Data Input Method before the Data Collectors will start using any new or modified Data Input Input Fields.'),
+		'message' => __('Data Input Field Saved.  You must update the Data Templates referencing this Data Input Method before the Data Collectors will start using any new or modified Data Input - Input Fields.'),
 		'level' => MESSAGE_LEVEL_INFO),
 	'clog_invalid' => array(
 		'message' => __('Log file specified is not a Cacti log or archive file.'),
@@ -694,7 +696,7 @@ $heartbeats = array(
 	90     => __('%d Seconds', 90),
 	120    => __('%d Minutes', 2),
 	300    => __('%d Minutes', 5),
-	330    => __('%3.1f Minutes', 5.5),
+	330    => __('%0.1f Minutes', 5.5),
 	600    => __('%d Minutes', 10),
 	660    => __('%d Minutes', 11),
 	1200   => __('%d Minutes', 20),
@@ -1220,7 +1222,8 @@ $user_auth_realm_filenames = array(
 	'aggregate_graphs.php' => 5,
 	'aggregate_items.php' => 5,
 	'spikekill.php' => 1043,
-	'permission_denied.php' => -1
+	'permission_denied.php' => -1,
+	'help.php' => -1
 );
 
 $hash_type_codes = array(
@@ -1780,7 +1783,7 @@ $i18n_months = array(
 	'January'	=> __('January'),
 	'February'	=> __('February'),
 	'March'		=> __('March'),
-	'Arpil'		=> __('April'),
+	'April'		=> __('April'),
 	'May'		=> __('May'),
 	'June'		=> __('June'),
 	'July'		=> __('July'),
@@ -2527,6 +2530,12 @@ $navigation = array(
 		'title' => __('About Cacti'),
 		'mapping' => '',
 		'url' => 'about.php',
+		'level' => '1'
+	),
+	'help.php:' => array(
+		'title' => __('Cacti Help'),
+		'mapping' => '',
+		'url' => 'help.php',
 		'level' => '1'
 	),
 	'templates_export.php:' => array(

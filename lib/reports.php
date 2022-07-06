@@ -140,7 +140,7 @@ function reports_add_devices($report_id, $device_ids, $timespan, $align) {
 						)
 					);
 
-					raise_message('reports_add_device_' . $device_id, __('Device \'%s\' sucessfully added to Report.', $description), MESSAGE_LEVEL_INFO);
+					raise_message('reports_add_device_' . $device_id, __('Device \'%s\' successfully added to Report.', $description), MESSAGE_LEVEL_INFO);
 				} else {
 					$errors++;
 					raise_message('reports_device_not_found', __('Device not found! Unable to add to Report'), MESSAGE_LEVEL_ERROR);
@@ -626,7 +626,7 @@ function generate_report($report, $force = false) {
  * @param string $format_file		- the file to read from the formats directory
  * @param string $output			- the html and css output from that file
  * @param bool $report_tag_included - a boolean that informs the caller if the report tag is present
- * @return bool						- wether or not the format file was processed correctly
+ * @return bool						- whether or not the format file was processed correctly
  */
 function reports_load_format_file($format_file, &$output, &$report_tag_included, &$theme) {
 	global $config;
@@ -957,7 +957,7 @@ function expand_branch(&$report, &$item, $branch_id, $output, $format_ok, $theme
 }
 
 /**
- * return html code for an embetted image
+ * return html code for an embedded image
  * @param array $report	- parameters for this report mail report
  * @param $item			- current graph item
  * @param $timespan		- timespan
@@ -1036,7 +1036,7 @@ function reports_expand_device(&$report, $item, $device_id, $output, $format_ok,
 	$graphs = array();
 
 	$sql_where       = '';
-	$title_delimeter = '';
+	$title_delimiter = '';
 	$search_key      = '';
 
 	$description = db_fetch_cell_prepared('SELECT h.description
@@ -1045,8 +1045,8 @@ function reports_expand_device(&$report, $item, $device_id, $output, $format_ok,
 		array($device_id));
 
 	if ($description != '') {
-		$title = $title_delimeter . __('Device:') . " $description";
-		$title_delimeter = ' > ';
+		$title = $title_delimiter . __('Device:') . " $description";
+		$title_delimiter = ' > ';
 	}
 
 	if ($item['graph_template_id'] == -1) {
@@ -1214,7 +1214,7 @@ function reports_expand_tree(&$report, $item, $parent, $output, $format_ok, $the
 		foreach ($leaves as $leaf) {
 			$sql_where       = '';
 			$title           = '';
-			$title_delimeter = '';
+			$title_delimiter = '';
 			$search_key      = '';
 			$host_name       = '';
 			$graph_name      = '';
@@ -1265,23 +1265,23 @@ function reports_expand_tree(&$report, $item, $parent, $output, $format_ok, $the
 			}
 
 			if (!empty($tree_name) && empty($leaf_name) && empty($host_name)) {
-				$title = $title_delimeter . __('Tree:') . " $tree_name";
-				$title_delimeter = ' > ';
+				$title = $title_delimiter . __('Tree:') . " $tree_name";
+				$title_delimiter = ' > ';
 			}
 
 			if (!empty($leaf_name)) {
-				$title .= $title_delimeter . " $leaf_name";
-				$title_delimeter = ' > ';
+				$title .= $title_delimiter . " $leaf_name";
+				$title_delimiter = ' > ';
 			}
 
 			if (!empty($host_name)) {
-				$title .= $title_delimeter . " $host_name";
-				$title_delimeter = ' > ';
+				$title .= $title_delimiter . " $host_name";
+				$title_delimiter = ' > ';
 			}
 
 			if (!empty($graph_name) && !$nested) {
-				$title .= $title_delimeter . " $graph_name";
-				$title_delimeter = ' > ';
+				$title .= $title_delimiter . " $graph_name";
+				$title_delimiter = ' > ';
 			}
 
 			if ($item['graph_name_regexp'] != '') {

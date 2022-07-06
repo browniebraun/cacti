@@ -169,7 +169,7 @@ $fields_snmp_item_with_oids = $fields_snmp_item + array(
 	),
 	'bulk_walk_size' => array(
 		'method'        => 'drop_array',
-		'friendly_name' => __('Bulk Walk Maximum Repititions'),
+		'friendly_name' => __('Bulk Walk Maximum Repetitions'),
 		'description'   => __('For SNMPv2 and SNMPv3 Devices, the SNMP Bulk Walk max-repetitions size. The default is to \'Auto Detect on Re-Index\'. For very large switches, high performance servers, Jumbo Frame Networks or for high latency WAN connections, increasing this value may increase poller performance. More data is packed into a single SNMP packet which can reduce data query run time. However, some devices may completely refuse to respond to packets with a max-repetition size which is set too large. This can be especially true for lower-powered IoT type devices or smaller embedded IT appliances. Special attention to the overall network path MTU should also be considered since setting a value which is too high could lead to packet fragmentation.'),
 		'value'         => '|arg1:bulk_walk_size|',
 		'default'       => '-1',
@@ -177,21 +177,21 @@ $fields_snmp_item_with_oids = $fields_snmp_item + array(
 			-1 => __('Auto Detect on Re-Index'),
 			0  => __('Auto Detect/Set on first Re-Index'),
 			1  => __('%d Repitition', 1),
-			2  => __('%d Repititions', 2),
-			3  => __('%d Repititions', 3),
-			4  => __('%d Repititions', 4),
-			5  => __('%d Repititions', 5),
-			10 => __('%d Repititions', 10),
-			15 => __('%d Repititions', 15),
-			20 => __('%d Repititions', 20),
-			25 => __('%d Repititions', 25),
-			30 => __('%d Repititions', 30),
-			35 => __('%d Repititions', 35),
-			40 => __('%d Repititions', 40),
-			45 => __('%d Repititions', 45),
-			50 => __('%d Repititions', 50),
-			55 => __('%d Repititions', 55),
-			60 => __('%d Repititions', 60)
+			2  => __('%d Repetitions', 2),
+			3  => __('%d Repetitions', 3),
+			4  => __('%d Repetitions', 4),
+			5  => __('%d Repetitions', 5),
+			10 => __('%d Repetitions', 10),
+			15 => __('%d Repetitions', 15),
+			20 => __('%d Repetitions', 20),
+			25 => __('%d Repetitions', 25),
+			30 => __('%d Repetitions', 30),
+			35 => __('%d Repetitions', 35),
+			40 => __('%d Repetitions', 40),
+			45 => __('%d Repetitions', 45),
+			50 => __('%d Repetitions', 50),
+			55 => __('%d Repetitions', 55),
+			60 => __('%d Repetitions', 60)
 		)
 	)
 );
@@ -1676,7 +1676,7 @@ $fields_template_import = array(
 		'description' => __('If the XML file containing template data is located on your local machine, select it here.'),
 		'accept' => '.xml',
 		'method' => 'file'
-		),
+	),
 	'import_text' => array(
 		'method' => 'hidden',
 		'friendly_name' => __('Import Template from Text'),
@@ -1686,21 +1686,28 @@ $fields_template_import = array(
 		'textarea_rows' => '10',
 		'textarea_cols' => '50',
 		'class' => 'textAreaNotes'
-		),
+	),
 	'preview_only' => array(
 		'friendly_name' => __('Preview Import Only'),
 		'method' => 'checkbox',
 		'description' => __('If checked, Cacti will not import the template, but rather compare the imported Template to the existing Template data.  If you are acceptable of the change, you can them import.'),
 		'value' => '',
 		'default' => 'on'
-		),
+	),
 	'remove_orphans' => array(
 		'friendly_name' => __('Remove Orphaned Graph Items'),
 		'method' => 'checkbox',
 		'description' => __('If checked, Cacti will delete any Graph Items from both the Graph Template and associated Graphs that are not included in the imported Graph Template.'),
 		'value' => '',
 		'default' => ''
-		),
+	),
+	'replace_svalues' => array(
+		'friendly_name' => __('Replace Data Query Suggested Value Patterns'),
+		'method' => 'checkbox',
+		'description' => __('Replace Data Source and Graph Template Suggested Value Records for Data Queries.  Graphs and Data Sources will take on new names after either a Data Query Reindex or by using the forced Replace Suggested Values process.'),
+		'value' => '',
+		'default' => ''
+	),
 	'import_data_source_profile' => array(
 		'friendly_name' => __('Data Source Profile'),
 		'method' => 'drop_sql',
@@ -1762,7 +1769,7 @@ $fields_template_import = array(
 			'method' => 'drop_array',
 			'value' => '|arg1:snmp_message_type|',
 			'default' => '1',
-			'array' => array(1 => 'NOTICATIONS', 2 => 'INFORMS')
+			'array' => array(1 => 'NOTIFICATIONS', 2 => 'INFORMS')
 			),
 		'addition_header' => array(
 			'method' => 'spacer',

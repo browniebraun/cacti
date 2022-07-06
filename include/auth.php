@@ -108,7 +108,7 @@ if ($auth_method != 0) {
 	/**
 	 * If the special boolean $guest_account is set for a page, then the guest
 	 * account can be used.  Where this may not be the case is with basic auth
-	 * where to enter the Cacti website, you must first have a valid acount.
+	 * where to enter the Cacti website, you must first have a valid account.
 	 * if that is the case, then use that valid accounts permissions and not
 	 * the guest account.
 	 */
@@ -135,7 +135,7 @@ if ($auth_method != 0) {
 	 * user will be redirected back to the login page.
 	 */
 	if (!isset($guest_account) && isset($_SESSION['sess_user_id'])) {
-		if (get_guest_account() == $_SESSION['sess_user_id']) {
+		if (get_guest_account() === $_SESSION['sess_user_id']) {
 			kill_session_var('sess_user_id');
 			cacti_session_destroy();
 			cacti_session_start();

@@ -128,7 +128,7 @@ save_log_files() {
 }
 
 # ------------------------------------------------------------------------------
-# Some functions to handle settings consitently
+# Some functions to handle settings consistently
 # ------------------------------------------------------------------------------
 set_cacti_admin_password() {
 	echo "NOTE: Setting Cacti admin password and unsetting forced password change"
@@ -311,6 +311,8 @@ echo "NOTE: Checking Cacti Log for Errors"
 FILTERED_LOG="$(grep -v \
 	-e "AUTH LOGIN: User 'admin' authenticated" \
 	-e "WEBUI NOTE: Poller Resource Cache scheduled for rebuild by user admin" \
+	-e "WEBUI NOTE: Poller Cache repopulated by user admin" \
+	-e "WEBUI NOTE: Cacti DS Stats purged by user admin" \
 	-e "IMPORT NOTE: File is Signed Correctly" \
 	-e "MAILER INFO:" \
 	-e "STATS:" \
