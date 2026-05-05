@@ -1,25 +1,4 @@
-/*
-  +-------------------------------------------------------------------------+
-  | Copyright (C) 2004-2026 The Cacti Group                                 |
-  |                                                                         |
-  | This program is free software; you can redistribute it and/or           |
-  | modify it under the terms of the GNU General Public License             |
-  | as published by the Free Software Foundation; either version 2          |
-  | of the License, or (at your option) any later version.                  |
-  |                                                                         |
-  | This program is distributed in the hope that it will be useful,         |
-  | but WITHOUT ANY WARRANTY; without even the implied warranty of          |
-  | MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           |
-  | GNU General Public License for more details.                            |
-  +-------------------------------------------------------------------------+
-  | Cacti: The Complete RRDTool-based Graphing Solution                     |
-  +-------------------------------------------------------------------------+
-  | This code is designed, written, and maintained by the Cacti Group. See  |
-  | about.php and/or the AUTHORS file for specific developer information.   |
-  +-------------------------------------------------------------------------+
-  | http://www.cacti.net/                                                   |
-  +-------------------------------------------------------------------------+
-*/
+
 
 // ensure namespace exists
 var midwinter = midwinter || {};
@@ -55,16 +34,28 @@ midwinter.navigationBox.table = {
     },
 
     // internal helper to notify the Cacti theme (e.g. that content is empty)
-    _notifyState: function($box, hasContent) {
+    _notifyState($box, hasContent) {
+        // get the native element
+        const el = $box instanceof jQuery ? $box[0] : $box;
+
+        // extract the helper instance from data attribute
+        const helper = el ? jQuery.data(el, 'helper') : null;
+
+        // prepare event data
+        const eventData = {
+            helper: helper,
+            hasContent: hasContent
+        };
+
+        // create and dispatch native custom event
         const event = new CustomEvent('mdw:pluginStateUpdate', {
-            detail: {
-                helper: $box.data('helper'),
-                plugin: 'table',
-                hasContent: hasContent
-            },
-            bubbles: true // ensure we are reaching the document level
+            detail: eventData,
+            bubbles: true,
+            cancelable: true
         });
-        $box[0].dispatchEvent(event);
+
+        // trigger event
+        document.dispatchEvent(event);
     },
 
     _executeReset: function(tableHash) {
@@ -187,7 +178,7 @@ midwinter.navigationBox.table = {
         const ns = midwinter.navigationBox.table;
         const $headerRow = $(`${ns._selectors.header}:has(th:nth-of-type(2))`).first();
 
-        if (!$headerRow.length) return '<div class="navBox-empty">No compatible table found</div>';
+        if (!$headerRow.length) return '';
 
         const $currentTable = $headerRow.closest(ns._selectors.table);
         const tableID       = $currentTable.attr('id') || 'no-id';
@@ -277,7 +268,8 @@ midwinter.navigationBox.table = {
         });
 
         // handle navigation button visibility via mdw.actions
-        const hasContent= $box.find('input[type="checkbox"]').length > 0;
+        const $content = $box.find('.navBox-content');
+        const hasContent = $content.children().length > 0 && $content.text().trim() !== "";
         ns._notifyState($box, hasContent);
     },
 

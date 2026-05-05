@@ -12,16 +12,28 @@ midwinter.navigationBox.filter = {
     },
 
     // internal helper to notify the Cacti theme (e.g. that content is empty)
-    _notifyState: function($box, hasContent) {
+    _notifyState($box, hasContent) {
+        // get the native element
+        const el = $box instanceof jQuery ? $box[0] : $box;
+
+        // extract the helper instance from data attribute
+        const helper = el ? jQuery.data(el, 'helper') : null;
+
+        // prepare event data
+        const eventData = {
+            helper: helper,
+            hasContent: hasContent
+        };
+
+        // create and dispatch native custom event
         const event = new CustomEvent('mdw:pluginStateUpdate', {
-            detail: {
-                helper: $box.data('helper'),
-                plugin: 'table',
-                hasContent: hasContent
-            },
-            bubbles: true // ensure we are reaching the document level
+            detail: eventData,
+            bubbles: true,
+            cancelable: true
         });
-        $box[0].dispatchEvent(event);
+
+        // trigger event
+        document.dispatchEvent(event);
     },
 
     /**

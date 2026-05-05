@@ -21,40 +21,46 @@
   +-------------------------------------------------------------------------+
 */
 
-const base = 'midwinter.navigationBox'; 
+const base = 'midwinter.navigationBox';
 const content = `${base}.content`;
 
 const uiConfig = {
+
+    global: {
+        hotkeys: [
+            { combo: 'F5',  action: 'refreshContent' },
+            { combo: 'ESC', action: 'closeOverlays' }
+        ]
+    },
+
     boxes: [
         {
-            title: window.cactiDashboards || 'Panels',
-            helper: 'dashboards',
-            buttons: { search: 'searchToHighlight' },
-            contentLoader: `${content}.dashboards`,
+            type: 'menu',                                                    // New async menu plugin
+            overrides: {
+                title: window.cactiDashboards || 'Panels',
+                helper: 'dashboards'
+            }
         },
         {
-            title: window.zoom_i18n_settings || 'Settings',
-            helper: 'settings',
-            buttons: { search: 'searchToHighlight' },
-            contentLoader: `${content}.settings`
+            type: 'menu',                                                   // New sync menu plugin
+            overrides: {
+                title: window.zoom_i18n_settings || 'Settings',
+                helper: 'settings'
+            }
         },
-        {   // New Cacti NavigationBox Tree Plugin
-            type: 'tree',
+        {
+            type: 'tree',                                                   // New Cacti NavigationBox Tree Plugin
             overrides: { title: 'Tree' }
         },
-        {   // New Cacti NavigationBox Tree Plugin
-            type: 'tree',
-            overrides: { title: 'Tree' , helper: 'another1' }
-        },
-        {   // New Cacti NavigationBox Table Plugin
-            type: 'table',
+        {
+            type: 'table',                                                  // New Cacti NavigationBox Table Plugin
             overrides: {
                 title: 'Table Layout',
                 layout: { align: 'right' }
             }
         },
-        {   // New Cacti Navigation Filter Table Plugin
-            type: 'filter',
+        {
+            type: 'filter',                                                 // New Cacti Navigation Filter Table Plugin
             overrides: {
                 title: 'Display Filter',
                 layout: { align: 'right' }
@@ -75,11 +81,25 @@ const uiConfig = {
             contentLoader: `${content}.user`
         },
         {
-            title: 'Theme',
-            helper: 'theme',
-            layout: { align: 'right' },
-            contentLoader: `${content}.theme`
+            type: 'help',
+            overrides: {
+                title: 'Help Center',
+                helper: 'cactiHelp',
+                layout: {
+                    style: 'overlay',
+                    align: 'right',
+                    width: '2',
+                    height: 'full'
+                }
+            }
         },
+        {
+            type: 'theme',
+            overrides: {
+                title: 'MidWinter Style',
+                helper: 'theme'
+            }
+        }
     ],
     buttons: [
         {
@@ -107,17 +127,15 @@ const uiConfig = {
             destination: "#compact_tab_menu",
             enabled: window.cactiGraphsAllowed || false,
             hotkey: 'ALT+SHIFT+3'
-
         },
         {
-            title: "Tree2",
-            helper: "another",
-            tooltip: "Tree View",
-            iconClass: "ti ti-login",
-            destination: "#compact_tab_menu",
-            enabled: window.cactiGraphsAllowed || false,
-            hotkey: 'ALT+SHIFT+8'
-
+            title: "Help",
+            helper: "cactiHelp",
+            tooltip: "Open Context Help",
+            iconClass: "ti ti-help-circle",
+            destination: "#navControl",
+            param: "help",
+            hotkey: 'ALT+SHIFT+H'
         },
         {
             title: "Help",
@@ -149,7 +167,7 @@ const uiConfig = {
             title: "Color",
             helper: "toggleColorMode",
             tooltip: "Toggle light/dark Mode",
-            iconClass: "ti ti-contrast-filled",
+            iconClass:  { "dark" : "ti ti-moon-filled" , "light" : "ti ti-sun-filled" },
             destination: "#navControl",
             onclick: "toggleColorMode",
             param: "on",
@@ -176,9 +194,9 @@ const uiConfig = {
             hotkey: 'ALT+SHIFT+Z'
         },
         {
-            title: "Theme Settings",
+            title: "MidWinter Style",
             helper: "theme",
-            tooltip: "Theme Settings",
+            tooltip: "MidWinter Style",
             iconClass: "ti ti-color-swatch",
             destination: "#mdw-ActionBarBottom",
             hotkey: 'ALT+SHIFT+T'
@@ -199,5 +217,5 @@ const uiConfig = {
             destination: "#mdw-ActionBarTop",
             hotkey: 'ALT+SHIFT+L'
         },
-    ]
+    ],
 };

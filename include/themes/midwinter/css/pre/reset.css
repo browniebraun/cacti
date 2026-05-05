@@ -6,34 +6,44 @@
 * {
     margin: 0;
     padding: 0;
+    /* ensure inheritance to beat cacti core.css */
     font: inherit;
+    color: inherit;
 }
 
 html {
-    color-scheme: dark light;
+    /* controlled via JS and your font.css */
+    height: 100%;
 }
 
 body {
-
+    /* ensure the body fills the viewport and uses your variables */
+    min-height: 100vh;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    background-color: var(--background);
+    color: var(--text-color-normal);
 }
-/*
-img, picture svg, video {
-    display: block;
-    max-width: 100%;
-}
 
-*/
+/* normalize tables because cacti relies on them heavily */
+table {
+    border-collapse: collapse;
+    border-spacing: 0;
+}
 
 ul {
     padding: revert;
     &[class] {
         list-style: none;
+        padding: 0;
     }
 }
 
-code,
-kbd,
-samp,
-pre {
-    font-family: var(--font-mono);
+code, kbd, samp, pre {
+    font-family: var(--font-mono), monospace;
+}
+
+/* remove legacy shadows/borders often forced by cacti */
+fieldset {
+    border: none;
 }

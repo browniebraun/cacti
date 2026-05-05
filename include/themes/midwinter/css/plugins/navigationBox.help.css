@@ -1,0 +1,163 @@
+/*
+ * Midwinter Cacti NavigationBox Help Plugin Styles
+ * Full Integration: colors.css & fonts.css with Native Nesting
+ */
+
+.mdw-help-wrapper {
+    padding: 1.5rem;
+    color: var(--text-color-normal);
+    background-color: var(--background-content);
+    font-family: var(--font-sans), sans-serif;
+    font-weight: var(--fw-normal);
+
+    .github-preview {
+        font-size: var(--fs-regular);
+        line-height: 1.6;
+
+        /* Überschriften-Mapping auf Midwinter Fonts */
+        & h1, & h2, & h3, & h4 {
+            margin-top: 1.5rem;
+            margin-bottom: 1rem;
+            font-weight: var(--fw-semibold);
+            color: var(--text-color-high-contrast);
+            line-height: 1.2;
+        }
+
+        & h1 { font-size: var(--fs-semihuge); margin-top: 0; border-bottom: 1px solid var(--border-color-light); padding-bottom: 0.5rem; }
+        & h2 { font-size: var(--fs-semilarge); border-bottom: 1px solid var(--border-color-light); padding-bottom: 0.3rem; }
+        & h3 { font-size: var(--fs-big); }
+        & h4 { font-size: var(--fs-regular); }
+
+        /* Listen */
+        & ul, & ol {
+            padding-left: 1.5rem;
+            margin: 1rem 0;
+        }
+
+        & img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+            border: 1px solid var(--border-color-light);
+            margin: 1.25rem 0;
+            display: block;
+            transition: filter 0.3s ease, opacity 0.3s ease;
+
+            /* Specific logic for Dark Mode */
+            [data-theme-color='dark'] & {
+                /* Reduce brightness and dim the image slightly */
+                filter: brightness(0.8) contrast(1.1);
+                opacity: 0.85;
+
+                /* Bring back to 100% on hover */
+                &:hover {
+                    filter: brightness(1) contrast(1);
+                    opacity: 1;
+                }
+            }
+
+            /* In Light Mode we want 100% visibility but maybe a soft shadow */
+            [data-theme-color='light'] & {
+                box-shadow: 0 2px 8px var(--box-shadow-color);
+            }
+        }
+
+        /* Tabellen im Midwinter-Look */
+        & table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            font-size: var(--fs-semismall);
+            background-color: var(--background-content-element);
+
+            & th, & td {
+                padding: 0.75rem;
+                border: 1px solid var(--border-color);
+                text-align: left;
+            }
+
+            & th {
+                background-color: var(--background-lowlight);
+                color: var(--text-color-high-contrast);
+                font-weight: var(--fw-bold);
+            }
+
+            & tr:nth-child(2n) {
+                background-color: var(--background-superlowlight);
+            }
+        }
+
+        /* Code-Blöcke & Monospace */
+        & code {
+            font-family: var(--font-mono);
+            font-size: var(--fs-semismall);
+            background-color: var(--background-superlowlight);
+            color: var(--text-color-highlight-a);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+        }
+
+        & pre {
+            background-color: var(--background-content-element);
+            border: 1px solid var(--border-color);
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1.25rem 0;
+
+            & code {
+                background-color: transparent;
+                padding: 0;
+                color: var(--text-color-medium);
+            }
+        }
+
+        /* Links & Interaktion */
+        & a {
+            color: var(--text-color-highlight-a);
+            font-weight: var(--fw-medium);
+            text-decoration: none;
+            transition: opacity 0.2s ease;
+
+            &:hover {
+                text-decoration: underline;
+                opacity: 0.8;
+            }
+        }
+
+        /* Zitate */
+        & blockquote {
+            margin: 1.5rem 0;
+            padding: 0.5rem 1rem;
+            color: var(--text-color-medium);
+            border-left: 4px solid var(--border-color-highlight);
+            background-color: var(--background-lowlight);
+            font-style: italic;
+        }
+    }
+
+    /* Plugin Footer */
+    .mdw-help-footer {
+        margin-top: 2.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border-color-light);
+        text-align: right;
+        font-size: var(--fs-extrasmall);
+        font-family: var(--font-sans);
+
+        & a {
+            color: var(--text-color-disabled);
+            text-transform: uppercase;
+            letter-spacing: 0.05rem;
+
+            &:hover {
+                color: var(--text-color-highlight-a);
+            }
+        }
+    }
+
+    ::highlight(doc-search-results) {
+        background-color: var(--text-search-highlight, yellow);
+        color: var(--text-color-black, black);
+    }
+}

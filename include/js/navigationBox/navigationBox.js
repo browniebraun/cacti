@@ -55,6 +55,8 @@ midwinter.navigationBox = {
                 if (config) {
                     // we just ensure the type is set so add() can pick it up
                     config.pluginType = def.type;
+                    // ensure fix connection between config and helper
+                    config.helper = def.overrides.helper || config.helper;
                 }
                 return config;
             }
@@ -85,6 +87,7 @@ class cactiNavigation {
     #refreshStorage = false;
     #prefix = 'mdw';
     #storageKey = 'navigationBox';
+    #searchTimers = {};
 
     target;
 
@@ -111,18 +114,50 @@ class cactiNavigation {
         /* identify caller */
         this.target = new.target;
 
+        /* storage for box configurations (including search paths) */
+        this.boxRegistry = {};
+
         /* restore local storage */
         this._restoreLocalStorage();
 
         /* setup limited to parent instance only */
         if (this.target === cactiNavigation) {
             this._validateOptions(options, this.#navOptions);
+            this.#initGlobalSearchDelegation();
             this.#nav.session = $.extend(true, {}, this.#navOptions, this.#nav.session);
             this._checkContainers();
             this._initDockResizables();
             this._applySavedSplits();
             this._refreshLocalStorage(this.#refreshStorage);
         }
+    }
+
+    #initGlobalSearchDelegation() {
+        /*
+           we use document or a very high-level parent that is always present.
+           this ensures the listener is active even if the container is
+           injected/modified later by cacti or setupTheme
+        */
+        $(document).on('input', 'input[name="navBox-header-search"]', (e) => {
+            const $input = $(e.currentTarget);
+
+            // debug check: if you see this in console, the 'on' condition is working!
+            // console.log('[Search] Input detected');
+
+            const $box   = $input.closest('[class*="ConsoleNavigationBox"]');
+            const helper = $box.data('helper');
+            const query  = $input.val();
+
+            // access the registry we discussed
+            const config = this.boxRegistry ? this.boxRegistry[helper] : null;
+
+            if (!config || !config.buttons || !config.buttons.search) return;
+
+            // just call the pre-debounced executor
+            if (config && config.searchExecutor) {
+                config.searchExecutor(query, $box);
+            }
+        });
     }
 
     _restoreLocalStorage() {
@@ -312,6 +347,20 @@ class cactiNavigation {
     }
 
     /* helper & utility methods */
+    /**
+     * internal debounce helper
+     * @param {function} callback - function to execute
+     * @param {number} delay - delay in ms
+     * @param {string} id - unique id (e.g. helper name) to prevent cross-box interference
+     */
+    _debounce(callback, delay = 250, id = 'global') {
+        return (...args) => {
+            clearTimeout(this.#searchTimers[id]);
+            this.#searchTimers[id] = setTimeout(() => {
+                callback.apply(this, args);
+            }, delay);
+        };
+    }
 
     _readConfigOption(obj, option = '', defVal = false) {
         const session = this.#nav.session;
@@ -481,7 +530,7 @@ class cactiNavigation {
         // INFO: Buttons without boxes are allowed (standalone actions)
         btnHelpers.forEach(helper => {
             if (!boxHelpers.includes(helper)) {
-                console.info(`Navigation Info: Button '${helper}' is a standalone action (no box linked).`);
+                //console.info(`Navigation Info: Button '${helper}' is a standalone action (no box linked).`);
             }
         });
     }
@@ -577,6 +626,121 @@ class cactiNavigation {
             this._checkDockInnerSiblings($box.parent());
         }
     }
+
+    /**
+     * highlight entire expression using css custom highlight api
+     * marks the whole text node if the search query matches any part
+     */
+    searchToHighlight(data) {
+        const query = (typeof data === 'object' ? data.query : data).trim().toLowerCase();
+        const $container = data.$box ? data.$box.find('.navBox-content') : this._getBox(data.helper).find('.navBox-content');
+        const container = $container.get(0);
+
+        if (!container) return;
+
+        if (CSS.highlights) CSS.highlights.delete("search-results");
+
+        const menuItems = container.querySelectorAll('li.menuitem');
+
+        if (!query) {
+            menuItems.forEach(li => li.classList.remove('hide'));
+            return;
+        }
+
+        const ranges = [];
+
+        menuItems.forEach(li => {
+            const walker = document.createTreeWalker(li, NodeFilter.SHOW_TEXT);
+            let textNode;
+            let itemHasMatch = false;
+
+            while (textNode = walker.nextNode()) {
+                const textLower = textNode.textContent.toLowerCase();
+
+                /* check if the text contains the search query */
+                if (textLower.includes(query)) {
+                    itemHasMatch = true;
+
+                    /* create a range spanning the full text content */
+                    const range = new Range();
+                    range.setStart(textNode, 0);
+                    range.setEnd(textNode, textNode.textContent.length);
+                    ranges.push(range);
+                }
+            }
+
+            /* toggle visibility of the list item based on match status */
+            li.classList.toggle('hide', !itemHasMatch);
+        });
+
+        /* register the highlight collection if matches were found */
+        if (CSS.highlights && ranges.length > 0) {
+            const highlight = new Highlight(...ranges);
+            CSS.highlights.set("search-results", highlight);
+        }
+    }
+
+    /**
+     * Highlights text within a container using the CSS Custom Highlight API.
+     * Does not hide non-matching elements.
+     */
+    highlightText(data) {
+        const query = (typeof data === 'object' ? data.query : data).trim().toLowerCase();
+        const $container = data.$box ? data.$box.find('.navBox-content') : this._getBox(data.helper).find('.navBox-content');
+        const container = $container.get(0);
+
+        if (!container) return;
+
+        /* clear previous highlights */
+        if (CSS.highlights) {
+            CSS.highlights.delete("doc-search-results");
+        }
+
+        if (!query || query.length < 2) return;
+
+        const ranges = [];
+        const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+        let textNode;
+
+        while (textNode = walker.nextNode()) {
+            const textContent = textNode.textContent;
+            const textLower = textContent.toLowerCase();
+            let startPos = 0;
+
+            while ((startPos = textLower.indexOf(query, startPos)) !== -1) {
+                /* 1. Find the start of the word (backwards from match) */
+                let wordStart = startPos;
+                while (wordStart > 0 && /\w/.test(textContent[wordStart - 1])) {
+                    wordStart--;
+                }
+
+                /* 2. Find the end of the word (forwards from match) */
+                let wordEnd = startPos + query.length;
+                while (wordEnd < textContent.length && /\w/.test(textContent[wordEnd])) {
+                    wordEnd++;
+                }
+
+                /* 3. Create a range for the full word */
+                try {
+                    const range = new Range();
+                    range.setStart(textNode, wordStart);
+                    range.setEnd(textNode, wordEnd);
+                    ranges.push(range);
+                } catch (e) {
+                    console.warn("Could not create range for node", textNode);
+                }
+
+                /* move past the word to avoid infinite loops or overlapping same-word matches */
+                startPos = wordEnd;
+            }
+        }
+
+        /* register the highlight collection */
+        if (CSS.highlights && ranges.length > 0) {
+            const highlight = new Highlight(...ranges);
+            CSS.highlights.set("doc-search-results", highlight);
+        }
+    }
 }
 
 class cactiButton extends cactiNavigation {
@@ -590,6 +754,7 @@ class cactiButton extends cactiNavigation {
             title       : '',
             helper      : '',
             tooltip     : '',
+            hotkey      : '',
             iconClass   : '',
             destination : '',
             onclick     : 'auto',
@@ -605,7 +770,12 @@ class cactiButton extends cactiNavigation {
 
         // handle potential object for toggling icons
         const icon = typeof config.iconClass === 'object' ? config.iconClass.off : config.iconClass;
-        const tooltip = typeof config.tooltip === 'object' ? config.tooltip.off : config.tooltip;
+        let tooltip = typeof config.tooltip === 'object' ? config.tooltip.off : config.tooltip;
+
+        // if a hotkey exists, append it to the title for the tooltip
+        if (config.hotkey) {
+            tooltip += ` [${config.hotkey}]`;
+        }
 
         // use 'toggleConsoleNavigationBox' if set to 'auto'
         const clickFunc = config.onclick === 'auto' ? 'toggleConsoleNavigationBox' : config.onclick;
@@ -615,6 +785,7 @@ class cactiButton extends cactiNavigation {
             <div class="compact_nav_icon hint--info hint--right hint--rounded" 
                  data-subtitle="${config.title}" 
                  data-helper="${config.helper}"  
+                 ${config.hotkey ? `data-hotkey="${config.hotkey}"` : ''}  
                  aria-label="${tooltip}" 
                  role="button" 
                  tabindex="0" 
@@ -853,23 +1024,6 @@ class cactiBox extends cactiNavigation {
                 }
                 e.preventDefault();
             });
-
-            const searchPath = config.buttons.search;
-
-            // debounce logic to keep CPU utilization low
-            const runDebouncedSearch = this.#debounce((query) => {
-                this._runFunction(searchPath, {
-                    query: query,
-                    helper: config.helper,
-                    $box: $box
-                });
-            }, 250);
-
-            $input.on("input", (e) => {
-                const query = $(e.currentTarget).val();
-                // Trigger the debounced function instead of running it immediately
-                runDebouncedSearch(query);
-            });
         }
 
         // save box states if states are not in cache ( and not in local storage, too)
@@ -881,6 +1035,19 @@ class cactiBox extends cactiNavigation {
         if (config.initCallback) {
             this._runFunction(config.initCallback, $box);
         }
+
+        // register the config in our parent so the search delegator finds it
+        // create a debounced version of the search for THIS specific box
+        if (config.buttons && config.buttons.search) {
+            config.searchExecutor = this._debounce((query, $box) => {
+                this._runFunction(config.buttons.search, {
+                    query:  query,
+                    helper: config.helper,
+                    $box:   $box
+                });
+            }, 250, config.helper);
+        }
+        mdw.obj.ctrl.nav.boxRegistry[config.helper] = config;
 
         // return the jQuery object
         return $box;
@@ -1216,48 +1383,6 @@ class cactiBox extends cactiNavigation {
 
         // finally update local storage
         localStorage.setItem(this.storageKey, JSON.stringify(this.allSavedStates));
-    }
-
-    #debounce(callback, delay = 250) {
-        return (...args) => {
-            clearTimeout(this.#searchTimer);
-            this.#searchTimer = setTimeout(() => {
-                callback.apply(this, args);
-            }, delay);
-        };
-    }
-
-    searchToHighlight(data) {
-        // critical check: ensure external library mark.js is loaded
-        if (!$.isFunction($.fn.markRegExp)) {
-            console.error("NavigationBox Error: 'mark.js' is not loaded! The search function requires this library.");
-            return;
-        }
-
-        const query = typeof data === 'object' ? data.query : data;
-        const $container = data.$box ? data.$box.find('.navBox-content') : this._getBox(data.helper).find('.navBox-content');
-
-        if (!$container.length) return;
-
-        // prepare search pattern
-        const pattern = '.*' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '.*';
-        const re = new RegExp(pattern, 'gmiu');
-
-        // execute mark.js logic
-        $("li.menuitem", $container).removeClass('hide');
-        $("a[role='menuitem'], li.menuitem", $container).unmark({
-            done: () => {
-                if (query) {
-                    $("a[role='menuitem'], li.menuitem", $container).markRegExp(re, {
-                        "accuracy": "complementary",
-                        "separateWordSearch": false,
-                        "done": () => {
-                            $("li.menuitem", $container).not(":has(mark)").addClass('hide');
-                        }
-                    });
-                }
-            }
-        });
     }
 
     restore(helper) {

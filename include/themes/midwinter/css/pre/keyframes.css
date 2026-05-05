@@ -1,9 +1,11 @@
+/* standard fade in with delay for smooth ui appearance */
 @keyframes fadeInAnimation {
-    0%		{ opacity: 0; }
-    50%		{ opacity: 0; }
-    100%	{ opacity: 1; }
+    0%   { opacity: 0; }
+    50%  { opacity: 0; }
+    100% { opacity: 1; }
 }
 
+/* scale transition with fixed offset for floating elements */
 @keyframes scaleDelay {
     0% {
         transform: translate(2.75rem, 0) scale(0);
@@ -13,5 +15,25 @@
     }
     100% {
         transform: translate(2.75rem, 0) scale(1);
+    }
+}
+
+/* simple slide in from left used for navigation panels */
+@keyframes slideInLeft {
+    from {
+        transform: translateX(-100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+/* slide in from right used for sidebar overlays or notifications */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+    }
+    to {
+        transform: translateX(0);
     }
 }

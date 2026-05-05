@@ -40,7 +40,8 @@ let mdw = {
         },
     },
     obj: { box: {}, ctrl: {} },
-	actions: {},
+	actions: {
+	},
 	domMap: {
 		cactiContent:       '#cactiContent',
 		cactiNavRight:      '#navigation_right',
@@ -60,44 +61,69 @@ let mdw = {
 	},
     cache: {
         classes:    [],
-        path:       'include/js/',
+        path:       'include/js/navigationBox/',
         storage:    Storages.localStorage,
-        tap:        { count: 0, clientX: 0, clientY: 0 }
+        tap:        { count: 0, clientX: 0, clientY: 0 },
+		colorListenerActive: false,
+		ajaxAnchorsActive: false
     }
 }
 
-/* --- Inside main.js --- */
-$(document).on('mdw:pluginStateUpdate', function(e) {
-	const data = e.originalEvent.detail;
-	const navManager = mdw.obj.ctrl.nav;
-	const btnManager = mdw.obj.ctrl.btn;
+mdw.cache.colorListener = (e) => {
+	const isDark = mdw.cache.systemQuery.matches;
+	mdw.actions.checkThemeColorSetup(isDark ? 'dark' : 'light');
+};
+
+document.addEventListener('mdw:pluginStateUpdate', (e) => {
+	// in VanillaJS CustomEvent-Data is available in .detail
+	const data = e.detail || e.originalEvent?.detail;
+
+	const { nav: navManager, btn: btnManager } = mdw.obj.ctrl;
 
 	// sync Button visibility
-	if (btnManager && typeof btnManager.show === 'function') {
+	if (typeof btnManager?.show === 'function') {
 		data.hasContent ? btnManager.show(data.helper) : btnManager.hide(data.helper);
 	}
 
-	// sync Box Presence via the new method
-	// This handles both showing and hiding, including Dock recalculation
-	if (navManager && typeof navManager.setBoxPresence === 'function') {
+	// sync Box Presence
+	if (typeof navManager?.setBoxPresence === 'function') {
 		navManager.setBoxPresence(data.helper, data.hasContent);
 	}
 });
 
 /**
- * Helper to safely move elements using the mapping
- * @param {string} sourceKey - Key from mdw.domMap
- * @param {string} targetKey - Key from mdw.domMap
+ * helper to safely move elements using the mapping
+ * @param {string} sourceKey - key from mdw.domMap
+ * @param {string} targetKey - key from mdw.domMap
  */
 mdw.actions.relocate = function(sourceKey, targetKey) {
-	const $source = $(mdw.domMap[sourceKey]);
-	const $target = $(mdw.domMap[targetKey]);
+	// always query fresh from dom because of cacti's ajax content updates
+	const source = document.querySelector(mdw.domMap[sourceKey]);
+	const target = document.querySelector(mdw.domMap[targetKey]);
 
-	if ($source.length && $target.length) {
-		$source.detach().appendTo($target);
+	// verify both elements exist before moving
+	if (source && target) {
+		target.appendChild(source);
 		return true;
 	}
 	return false;
+};
+
+mdw.actions.hotkeyRegistry = {
+	refreshContent: () => {
+		if (typeof togglePopOver === 'function') togglePopOver(false);
+		if (typeof loadUrl === 'function') {
+			loadUrl({ url: window.location.href });
+		} else {
+			window.location.reload();
+		}
+	},
+	closeOverlays: () => {
+		if (typeof togglePopOver === 'function') togglePopOver(false);
+		if (getDocumentAttribute('kiosk-mode') === 'on') {
+			kioskMode(false);
+		}
+	}
 };
 
 /**
@@ -109,150 +135,271 @@ mdw.actions.initHotKeys = function() {
 	if (mdw.cache.hotkeysActive) return;
 
 	document.addEventListener('keydown', (event) => {
-		// skip if user is focusing a form element
-		if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+		// skip only if user is actively typing in an input field
+		const activeEl = document.activeElement;
+		const isTyping = activeEl && (
+			['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName) ||
+			activeEl.isContentEditable
+		);
+
+		if (isTyping) return;
 
 		const parts = [];
 		if (event.ctrlKey)  parts.push('CTRL');
 		if (event.altKey)   parts.push('ALT');
 		if (event.shiftKey) parts.push('SHIFT');
 
-		// detect if the key is a digit to handle shift-translation (e.g. " instead of 2)
 		let keyName = '';
 		if (event.code.startsWith('Digit')) {
-			// extract the actual digit from "Digit2" -> "2"
-			keyName = event.code.replace('Digit', '');
+			keyName = event.code.slice(5);
+		} else if (event.code.startsWith('Numpad') && event.code.length === 7) {
+			keyName = event.code.slice(6);
 		} else {
 			keyName = event.key.toUpperCase();
 		}
 
 		if (keyName === 'ESCAPE') keyName = 'ESC';
-		parts.push(keyName === ' ' ? 'SPACE' : keyName);
+		if (keyName === ' ')      keyName = 'SPACE';
+		if (['CONTROL', 'ALT', 'SHIFT'].includes(keyName)) return;
 
+		parts.push(keyName);
 		const combo = parts.join('+');
 
-		// find element with matching data-hotkey attribute
-		const targetEl = document.querySelector(`[data-hotkey="${combo}"]`);
+		// 1. check for global virtual actions (e.g., ESC to exit Kiosk)
+		const virtualAction = uiConfig.global.hotkeys.find(h => h.combo === combo);
+		if (virtualAction && typeof mdw.actions.hotkeyRegistry[virtualAction.action] === 'function') {
+			event.preventDefault();
+			// Stop propagation only for handled actions
+			event.stopImmediatePropagation();
+			mdw.actions.hotkeyRegistry[virtualAction.action]();
+			return;
+		}
 
-		if (targetEl) {
-			// stop cacti and browser defaults immediately
+		// 2. check for elements with data-hotkey
+		const targetEl = document.querySelector(`[data-hotkey="${combo}"]`);
+		if (targetEl && (targetEl.offsetWidth > 0 || targetEl.offsetHeight > 0)) {
 			event.preventDefault();
 			event.stopImmediatePropagation();
 
-			// trigger click via jquery to ensure your add() logic fires
-			$(targetEl).trigger('click');
-			console.log(`[HotKey] Success: ${combo}`);
+			// use native click
+			targetEl.click();
 		}
-	}, true); // use capture phase to catch event before cacti scripts
+	}, true); // useCapture enabled to catch events early
 
 	mdw.cache.hotkeysActive = true;
 };
 
 
-mdw.uiObserver = {
-	instance: null,
+/**
+ * validates and applies color mode changes if necessary
+ * @param {string} colorMode - 'dark' or 'light'
+ */
+mdw.actions.checkThemeColorSetup = function(colorMode) {
+	// get current attribute from document for comparison
+	const currentDocMode = getDocumentAttribute('theme-color');
 
-	init: function() {
-		// PREVENTION: If an observer is already running, do nothing
-		if (this.instance) {
-			return;
+	// get current cookie if available
+	const currentCookie = typeof getCookieValue === 'function' ? getCookieValue('CactiColorMode') : null;
+
+	// only trigger update if mode actually changed to prevent loops
+	if (currentDocMode !== colorMode || currentCookie !== colorMode) {
+
+		// update the session object
+		// only if not in auto-mode, otherwise we just sync the UI state
+		if (mdw.session.theme.color.auto !== 'on') {
+			mdw.session.theme.color.mode = colorMode;
+		} else {
+			// in auto-mode, we still want the internal mode to reflect reality
+			mdw.session.theme.color.mode = colorMode;
 		}
 
-		const targetNode = document.body;
-		const config = { childList: true, subtree: true };
+		// persist the changes to local storage
+		if (typeof refreshLocalStorage === 'function') {
+			refreshLocalStorage();
+		}
 
-		this.instance = new MutationObserver((mutations) => {
-			let needsRelocate = false;
+		// IMPORTANT: apply the attributes to the DOM immediately
+		// previously this might have been missing or only called on full refresh
+		if (typeof mdw.actions.applyThemeState === 'function') {
+			mdw.actions.applyThemeState();
+		}
 
-			for (let mutation of mutations) {
-				if (mutation.type === 'childList') {
-					// Check if any of the added nodes is the Cacti content we want to move
-					mutation.addedNodes.forEach(node => {
-						const $node = $(node);
-						// Does this node match our source map for Cacti content?
-						if ($node.is(mdw.domMap.cactiNavRight) || $node.find(mdw.domMap.cactiNavRight).length) {
-							needsRelocate = true;
-						}
-					});
-				}
-			}
+		// sync with server-side cookie
+		if (typeof setCookieValue === 'function') {
+			setCookieValue('CactiColorMode', colorMode);
+		}
 
-			if (needsRelocate) {
-				/*
-                 * 1. PAUSE: We temporarily disconnect to prevent an infinite loop
-                 * while we move elements ourselves.
-                 */
-				this.instance.disconnect();
+		// refresh cacti graphs with new color context
+		if (typeof initializeGraphs === 'function') {
+			initializeGraphs(true);
+		}
 
-				/*
-                 * 2. ACTION: Relocate the content and refresh everything
-                 */
-				mdw.actions.relocate('cactiNavRight', 'mdwMain');
-
-				// This triggers the Plugin-Refresh and re-checks the table columns
-				setupDefaultElements();
-				setupThemeActions();
-
-				/*
-                 * 3. RESUME: Re-observe after the changes are done
-                 */
-				this.instance.observe(document.body, { childList: true, subtree: true });
-			}
-		});
-
-		this.instance.observe(targetNode, config);
-		console.log('[Midwinter] MutationObserver started once.');
+		console.log('[Midwinter] Theme color applied:', colorMode);
 	}
 };
 
 
-/* load and (auto) register navigationBox as well as its plugins and configuration */
-loadScript('navigationBox',   mdw.cache.path + 'navigationBox.js');
-loadScript('navigationBox.tree',  mdw.cache.path + 'navigationBox.tree.js');
-loadScript('navigationBox.tableLayout',  mdw.cache.path + 'navigationBox.tableLayout.js');
-loadScript('navigationBox.filter',  mdw.cache.path + 'navigationBox.tableFilter.js');
-loadScript('config', 'include/themes/midwinter/config.js');
-
-
-restoreLocalStorage();
 
 /**
- * main entry point for the midwinter theme
- * called by cacti once the document is ready
+ * main entry point for applying all session-based theme settings
+ * modernized to use native batch updates
  */
-function themeReady() {
-	/* setup basic theme layout and manager instances */
-	setupTheme();
+mdw.actions.applyThemeState = function() {
+	const storage = mdw.cache.storage;
 
-	/* initialize global hotkey dispatcher via dom attributes */
-	mdw.actions.initHotKeys()
-
-	/* process initial elements and trigger plugin refreshes */
-	setupDefaultElements();
-
-	/* start the mutation observer to handle future cacti ajax updates */
-	if (mdw.uiObserver && typeof mdw.uiObserver.init === 'function') {
-		mdw.uiObserver.init();
+	// handle data retrieval from local storage
+	if (!storage || !storage.isSet('midWinter')) {
+		if (typeof refreshLocalStorage === 'function') refreshLocalStorage();
+	} else {
+		try {
+			mdw.session = JSON.parse(lzjs.decompress(storage.get('midWinter')));
+		} catch (e) {
+			console.error('[Midwinter] storage corruption, resetting...');
+			if (typeof refreshLocalStorage === 'function') refreshLocalStorage();
+		}
 	}
 
-updateNavigation();
-updateAjaxAnchors();
-setThemeColor();
+	// apply attributes to documentElement (ui logic)
+	const theme = mdw.session.theme;
+	const attrs = {
+		'theme-color':       theme.color.mode,
+		'theme-color-auto':  theme.color.auto,
+		'zoom-level':        theme.font.zoom,
+		'animations':        theme.boxes.animated,
+		'auto-table-layout': theme.mobile.autoTableLayout,
+		'controls-subtitle': theme.controls.subTitle
+	};
+
+	// batch update data-attributes using native forEach
+	Object.keys(attrs).forEach(key => {
+		setDocumentAttribute(key, attrs[key]);
+	});
+};
+
+mdw.actions.finalizeLayout = function() {
+	setupDefaultElements();
+	updateNavigation();
+	updateAjaxAnchors();
+	setThemeColor();
 
 	//hideConsoleNavigation();
 	setupThemeActions();
 
 	// set PWA Layout attribute
 	checkPWADisplayMode();
-
-	/* disable the initial theme loading overlay */
-	if (typeof themeLoader === 'function') {
-		themeLoader('off');
-	}
-
-	console.log('[Midwinter] UI fully initialized and reactive.');
 }
 
+mdw.uiObserver = {
+	instance: null,
+
+	init: function() {
+		// prevention: if an observer is already running, do nothing
+		if (this.instance) return;
+
+		const targetNode = document.body;
+		const config = { childList: true, subtree: true };
+
+		this.instance = new MutationObserver((mutations) => {
+			let needsRelocate = false;
+			const navRightSelector = mdw.domMap.cactiNavRight;
+
+			for (const mutation of mutations) {
+				// we only care about added elements
+				for (const node of mutation.addedNodes) {
+					// skip text nodes or non-element nodes
+					if (node.nodeType !== 1) continue;
+
+					// check if the node itself or one of its children is our target
+					if (node.matches(navRightSelector) || node.querySelector(navRightSelector)) {
+						needsRelocate = true;
+						break;
+					}
+				}
+				if (needsRelocate) break;
+			}
+
+			if (needsRelocate) {
+				// pause: temporarily disconnect to prevent infinite loops during DOM moves
+				this.instance.disconnect();
+
+				// action: relocate content using our helper
+				mdw.actions.relocate('cactiNavRight', 'mdwMain');
+
+				// refresh cacti defaults and theme logic
+				if (typeof setupDefaultElements === 'function') setupDefaultElements();
+				if (typeof setupThemeActions === 'function') setupThemeActions();
+
+				// resume: re-observe after changes are done
+				this.instance.observe(targetNode, config);
+			}
+		});
+
+		this.instance.observe(targetNode, config);
+		console.log('[Midwinter] MutationObserver initialized.');
+	}
+};
+
+
+/**
+ * handles the one-time loading of all theme dependencies
+ * @returns {Promise}
+ */
+async function initMidwinter() {
+	// return immediately if core plugins are already in cache
+	if (mdw.cache.classes.includes('navigationBox.filter')) {
+		return;
+	}
+
+	try {
+		// load configuration and core logic first
+		await Promise.all([
+			loadScript('config', 'include/themes/midwinter/config.js'),
+			loadScript('navigationBox', mdw.cache.path + 'navigationBox.js')
+		]);
+
+		// load all navigation plugins in parallel
+		await Promise.all([
+			loadScript('navigationBox.help', mdw.cache.path + '/plugins/navigationBox.help.js'),
+			loadScript('navigationBox.menu', mdw.cache.path + '/plugins/navigationBox.menu.js'),
+			loadScript('navigationBox.tree', mdw.cache.path + '/plugins/navigationBox.tree.js'),
+			loadScript('navigationBox.tableLayout', mdw.cache.path + '/plugins/navigationBox.tableLayout.js'),
+			loadScript('navigationBox.filter', mdw.cache.path + '/plugins/navigationBox.tableFilter.js'),
+			// load theme specific plugin from the theme directory
+			loadScript('navigationBox.theme', 'include/themes/midwinter/navigationBox.theme.js')
+		]);
+
+	} catch (error) {
+		console.error('[Midwinter] bootstrap failed', error);
+	}
+}
+
+//restoreLocalStorage();
+
+/**
+ * called by cacti whenever a page or ajax fragment is ready
+ */
+function themeReady() {
+	// apply immediate layout states that don't depend on scripts
+	mdw.actions.applyThemeState();
+
+	// ensure all dependencies are loaded before proceeding
+	initMidwinter().then(() => {
+		// initialize core logic
+		setupTheme();
+		mdw.actions.initHotKeys();
+
+		// process layout and plugins
+		mdw.actions.finalizeLayout();
+
+		// enable observer last
+		mdw.uiObserver?.init?.();
+
+		// remove overlay
+		themeLoader?.('off');
+
+		console.log('[Midwinter] UI fully initialized and reactive.');
+	});
+}
 
 function checkPWADisplayMode() {
 	// initial setup
@@ -268,144 +415,238 @@ function checkPWADisplayMode() {
 	// TODO conflict with fullscreen mode
 }
 
-function hideConsoleNavigation() {
-	$('#mdw-SideBarContainer [class^="mdw-ConsoleNavigationBox"]').removeClass('visible');
-	$('#mdw-SideBarContainer [class^="mdw-ConsoleNavigationBox"][data-helper!="tree"]').removeClass('visible');
-	//$('.compact_nav_icon[data-helper!="tree"]').removeClass('selected');
-}
-
+/**
+ * handles global ajax navigation and resolves overlap with cacti's internal ajaxAnchors()
+ * uses event delegation to be robust against cacti's frequent applySkin() calls
+ */
 function updateAjaxAnchors() {
-	$('a.pic, a.linkOverDark, a.linkEditMain, a.console, a.hyperLink, a.tab').not('[href^="http"], [href^="https"], [href^="#"], [href^="mailto"], [target="_blank"]').off('click').on('click', function(event) {
+	// singleton guard: only attach the global delegate once
+	if (mdw.cache.ajaxAnchorsActive) return;
+
+	document.addEventListener('click', function(event) {
+		// 1. check if the click should be captured (ignore if Shift/Alt/Ctrl/Meta is pressed)
+		// this mirrors cacti's native shouldCaptureClick(event) logic
+		if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) {
+			return;
+		}
+
+		// 2. find the closest matching anchor
+		const anchor = event.target.closest('a.pic, a.linkOverDark, a.linkEditMain, a.console, a.hyperLink, a.tab');
+		if (!anchor) return;
+
+		const href = anchor.getAttribute('href');
+
+		// 3. validation check (ignore external, anchors, or mailto)
+		if (!href || href === '#' || href.startsWith('http') || anchor.getAttribute('target') === '_blank' || href.startsWith('mailto:')) {
+			return;
+		}
+
+		// 4. take control: prevent Cacti's native ajaxAnchors() from firing
 		event.preventDefault();
-		event.stopPropagation();
+		event.stopImmediatePropagation();
 
-		/* determine the page name */
-		let href = $(this).attr('href');
-
-		if (href === '#') {
-			return false;
+		/* midwinter specific ui logic */
+		if (anchor.classList.contains('pic')) {
+			document.querySelectorAll('a.pic.selected').forEach(el => el.classList.remove('selected'));
+			anchor.classList.add('selected');
 		}
 
-		/* update menu selection */
-		if ($(this).hasClass('pic')) {
-			$('a[class="pic selected"]').removeClass('selected');
-			$(this).addClass('selected');
+		/* handle mobile/sidebar logic */
+		if (window.innerWidth < 640 && typeof menuHide === 'function') {
+			menuHide(false);
 		}
 
-		if (href != null) {
-			pageName = basename(href);
+		// close midwinter console navigation boxes
+		const sideBarBoxes = document.querySelectorAll('#mdw-SideBarContainer [class^="mdw-ConsoleNavigationBox"]');
+		sideBarBoxes.forEach(box => box.classList.remove('visible'));
+
+		/* determine pageName for cacti global scope */
+		if (typeof basename === 'function') {
+			window.pageName = basename(href);
 		}
 
-		/* close the console navigation afterward */
-		$('#mdw-SideBarContainer [class^="mdw-ConsoleNavigationBox"]').removeClass('visible');
+		/* trigger cacti's internal loader */
+		if (typeof loadUrl === 'function') {
+			loadUrl({
+				url: href,
+				loadType: 'loadPage'
+			});
+		}
+	}, true); // useCapture = true to intercept before cacti's core listeners
 
-		loadUrl({url:href});
-		return false;
-	});
+	mdw.cache.ajaxAnchorsActive = true;
+	console.log('[Midwinter] Global AJAX anchor delegation active with keyboard modifier support.');
 }
 
-function midWinterNavigation(element) {
 
-	let action   		= element.parent().html();
-	let category 		= element.closest('.menuitem').children('.menu_parent').first().children('span').text();
-	let helper   		= element.closest('div[class^="mdw-ConsoleNavigationBox"]').data('helper');
-	let rubric		 	= element.closest('div[class^="mdw-ConsoleNavigationBox"]').data('title');
-
-	const btnManager = new cactiButton();
-
-	$('#navBreadCrumb .rubric').html( '<span>'+rubric+'</span>').attr('data-helper', helper).off().on(
-		"click", {param: 'force_open', filter: 'reset'}, btnManager.toggleConsoleNavigationBox
-	);
-	$('#navBreadCrumb .category').html( '<span>'+category+'</span>' ).attr('data-helper', helper).off().on(
-		"click", {param: 'force_open', filter: category}, btnManager.toggleConsoleNavigationBox
-	);
-	$('#navBreadCrumb .action').html( action );
-
-	if (helper !== undefined) {
-	//	$('.compact_nav_icon[data-helper="'+helper+'"]').addClass('mdw-active');
-	//	$('.compact_nav_icon[data-helper!="'+helper+'"]').removeClass('mdw-active');
-	}
-
-}
-
-function updateNavigation() {
-	// use different search patterns until we have a valid location to populate the new breadcrumb navigation
-	let menu_element;
-	menu_element = $('[class^="mdw-ConsoleNavigationBox"] a[href$="'+window.location.pathname+window.location.search+'"').first();
-	if (menu_element.length !== 0) return midWinterNavigation(menu_element);
-	menu_element = $('[class^="mdw-ConsoleNavigationBox"] a[href$="'+window.location.pathname+'"').first();
-	if (menu_element.length !== 0) return midWinterNavigation(menu_element);
-	menu_element = $('[class^="mdw-ConsoleNavigationBox"] a[href$="'+window.location.pathname+'index.php"').first();
-	if (menu_element.length !== 0) return midWinterNavigation(menu_element);
-
-	// Append an action if the user did not provide one based upon the cactiAction variable
-	menu_element = $('[class^="mdw-ConsoleNavigationBox"] a[href^="'+window.location.pathname+'?action='+cactiAction+'"').first();
-	if (menu_element.length !== 0) return midWinterNavigation(menu_element);
-
-	// Choose what fits best in situations where users have cleared their settings
-	menu_element = $('[class^="mdw-ConsoleNavigationBox"] a[href^="'+window.location.pathname+'"').first();
-	if (menu_element.length !== 0) return midWinterNavigation(menu_element);
-}
 
 /**
- * Main theme setup logic
- * Handles login UI rewrites, main layout transformation and component initialization
+ * updates the breadcrumb navigation based on the active menu element
+ * @param {HTMLElement} element - the native anchor element
  */
-function setupTheme() {
-	/* -- login, logout -- rewrite */
-	const $authBody = $(mdw.domMap.cactiAuthBody);
-	const $authArea = $(mdw.domMap.cactiAuthArea);
+function midWinterNavigation(element) {
+	const menuItem = element.closest('.menuitem');
+	const parentBox = element.closest('div[class^="mdw-ConsoleNavigationBox"]');
 
-	if ($authBody.length !== 0 && $authArea.text() !== 'WELCOME TO CACTI') {
-		/* modify login area title */
-		$authArea.text('WELCOME TO CACTI');
+	// extract core data
+	const helper = parentBox?.dataset.helper;
+	const rubric = parentBox?.dataset.title;
 
-		/* detach legacy table layout */
-		const $authTable = $(mdw.domMap.cactiAuthTable).detach();
-		const $authForm = $(mdw.domMap.cactiAuthForm);
+	// handle the "tree_content" special case
+	const currentUrl = window.location.href;
+	let categoryText = menuItem?.querySelector('.menu_parent span')?.textContent || '';
+	let actionHTML = element.parentElement.innerHTML;
 
-		/* suppress issues with autofocus while page is loading */
-		$('<input id="suppress_autofocus" type="text" style="display:none;" tab-index="-1" autofocus>').prependTo($authForm);
+	/* --- Inside midWinterNavigation --- */
+	if (currentUrl.includes('action=tree_content') || currentUrl.includes('action=tree')) {
+		// apply workaround: if category is missing in tree mode, set it to "Node"
+		if (!categoryText || categoryText.trim() === '') {
+			categoryText = 'Node';
+		}
 
-		/* define password placeholders for rewrite */
-		const pwdPlaceholders = {
-			'current': 'Current Password',
-			'password': 'New Password',
-			'password_confirm': 'Confirm Password'
-		};
+		// clean up document title to extract the pure node or graph name
+		// this regex removes common cacti prefixes and handles separators like " - "
+		let pageTitle = document.title;
 
-		/* process table elements and transform to modern layout */
-		$authTable.find("input, button, label").each(function() {
-			const $el = $(this);
-			const type = $el.attr('type');
-			const id = $el.attr('id');
+		/*
+         * replace common cacti title prefixes
+         * matches patterns like "Cacti - ", "Cacti [1.2.x] - ", "Graph View - " etc.
+         */
+		const cleanTitle = pageTitle
+			.replace(/^Cacti\s*(?:\[.*?\])?\s*-\s*/i, '') // removes "Cacti - " or "Cacti - "
+			.replace(/^Graph View\s*-\s*/i, '')           // removes "Graph View - "
+			.replace(/^Console\s*-\s*/i, '');             // removes "Console - "
 
-			if ((type === 'password' || type === 'text') && $el.attr('name') !== undefined) {
-				$el.appendTo($authForm);
-
-				if (type === 'password') {
-					if (pwdPlaceholders[id]) {
-						$el.attr('placeholder', pwdPlaceholders[id]);
-					}
-					// Insert toggle icon using template literal
-					$(`<i class="ti ti-lock" data-helper="${id}" data-func="togglePwdInputField"></i>`).insertAfter($el);
-				}
-			} else {
-				$el.appendTo($authForm);
-			}
-		});
-
-		/* handle welcome message and version info */
-		const welcomeMsg = $authTable.find('td').eq(0).html();
-		$(`<span>${welcomeMsg}</span>`).prependTo($authForm);
-
-		$(mdw.domMap.versionInfo).detach().appendTo($authBody);
-		$('<i class="ti ti-user"></i>').insertAfter(mdw.domMap.loginUsername);
+		actionHTML = `<span>${cleanTitle}</span>`;
 	}
 
-	/* --- start layout redesign --- */
+	const btnManager = mdw.obj.ctrl.btn;
+
+	// update rubric
+	const rubricEl = document.querySelector('#navBreadCrumb .rubric');
+	if (rubricEl) {
+		rubricEl.innerHTML = `<span>${rubric}</span>`;
+		rubricEl.dataset.helper = helper;
+		rubricEl.onclick = () => btnManager?.toggleConsoleNavigationBox({ data: { param: 'force_open', filter: 'reset' } });
+	}
+
+	// update category
+	const categoryEl = document.querySelector('#navBreadCrumb .category');
+	if (categoryEl) {
+		categoryEl.innerHTML = `<span>${categoryText}</span>`;
+		categoryEl.dataset.helper = helper;
+		categoryEl.onclick = () => btnManager?.toggleConsoleNavigationBox({ data: { param: 'force_open', filter: categoryText } });
+	}
+
+	// update action
+	const actionEl = document.querySelector('#navBreadCrumb .action');
+	if (actionEl) {
+		actionEl.innerHTML = actionHTML;
+	}
+}
+
+
+/**
+ * finds the best matching navigation link for the current browser location
+ */
+function updateNavigation() {
+	const currentPath = window.location.pathname;
+	const currentSearch = window.location.search;
+	const fullTarget = currentPath + currentSearch;
+
+	// parse actual url parameters to get the real action
+	const urlParams = new URLSearchParams(currentSearch);
+	const realAction = urlParams.get('action');
+
+	// define search patterns in order of specificity
+	const patterns = [
+		`a[href$="${fullTarget}"]`, // exact match with search params
+		`a[href$="${currentPath}${currentSearch ? currentSearch : ''}"]`,
+		`a[href$="${currentPath}"]`,
+		`a[href$="${currentPath}index.php"]`
+	];
+
+	// if we found a real action in the url, prioritize it
+	if (realAction) {
+		patterns.push(`a[href*="action=${realAction}"]`);
+	}
+
+	// final fallback for the path
+	patterns.push(`a[href^="${currentPath}"]`);
+
+	const navContainers = document.querySelectorAll('div[class^="mdw-ConsoleNavigationBox"]');
+
+	for (const pattern of patterns) {
+		for (const container of navContainers) {
+			const match = container.querySelector(pattern);
+			if (match) {
+				midWinterNavigation(match);
+				return;
+			}
+		}
+	}
+}
+
+
+/**
+ * main theme setup logic
+ * handles login ui rewrites, main layout transformation and component initialization
+ */
+function setupTheme() {
+	/* login and logout rewrite */
+	const authBody = document.querySelector(mdw.domMap.cactiAuthBody);
+	const authArea = document.querySelector(mdw.domMap.cactiAuthArea);
+
+	if (authBody && authArea?.textContent !== 'WELCOME TO CACTI') {
+		authArea.textContent = 'WELCOME TO CACTI';
+
+		const authTable = document.querySelector(mdw.domMap.cactiAuthTable);
+		const authForm = document.querySelector(mdw.domMap.cactiAuthForm);
+
+		if (authTable && authForm) {
+			/* suppress autofocus issues */
+			authForm.insertAdjacentHTML('afterbegin', '<input id="suppress_autofocus" type="text" style="display:none;" tab-index="-1" autofocus>');
+
+			const pwdPlaceholders = {
+				'current': 'Current Password',
+				'password': 'New Password',
+				'password_confirm': 'Confirm Password'
+			};
+
+			/* process table elements and transform to modern layout */
+			authTable.querySelectorAll('input, button, label').forEach(el => {
+				const type = el.getAttribute('type');
+				const id = el.id;
+
+				authForm.appendChild(el);
+
+				if (type === 'password' && pwdPlaceholders[id]) {
+					el.setAttribute('placeholder', pwdPlaceholders[id]);
+					el.insertAdjacentHTML('afterend', `<i class="ti ti-lock" data-helper="${id}" data-func="togglePwdInputField"></i>`);
+				}
+			});
+
+			/* handle welcome message and version info */
+			const welcomeCell = authTable.querySelector('td');
+			if (welcomeCell) {
+				authForm.insertAdjacentHTML('afterbegin', `<span>${welcomeCell.innerHTML}</span>`);
+			}
+
+			const versionInfo = document.querySelector(mdw.domMap.versionInfo);
+			if (versionInfo) authBody.appendChild(versionInfo);
+
+			const loginUser = document.querySelector(mdw.domMap.loginUsername);
+			if (loginUser) loginUser.insertAdjacentHTML('afterend', '<i class="ti ti-user"></i>');
+
+			authTable.remove();
+		}
+	}
+
+	/* layout redesign */
 	const cactiContent = document.querySelector(mdw.domMap.cactiContent);
-	if (cactiContent) {
+	const breadcrumb = document.querySelector(mdw.domMap.cactiBreadcrumb);
+
+	if (cactiContent && breadcrumb) {
 		const gridHTML = `
 			<div id="mdw-GridContainer" class="mdw-GridContainer">
 				<div id="mdw-GridContainer-Overlay" class="mdw-GridContainer-Overlay mdw-PopOver hidden"></div>
@@ -432,82 +673,78 @@ function setupTheme() {
 				</div>
 			</div>`;
 
-		const breadcrumb = document.querySelector(mdw.domMap.cactiBreadcrumb);
-		if (breadcrumb) {
-			breadcrumb.insertAdjacentHTML('beforebegin', gridHTML);
-		}
-
+		breadcrumb.insertAdjacentHTML('beforebegin', gridHTML);
 		mdw.actions.relocate('cactiNavRight', 'mdwMain');
 		cactiContent.remove();
 	}
 
-	/* -- redesign console navigation area */
-	if ($('.mdw-ConsoleNavigation').length !== 0) {
-		if ($('#navBackdrop').length === 0) {
-			$('.mdw-ConsoleNavigation').empty().prepend('<div class="compact_nav_icon_menu">' +
-				'<div class="compact_nav_icon hint--info hint--right hint--rounded" data-subtitle="Console" id="navBackdrop" aria-label="Console" role="button" tabindex="0">' +
-				'<div class="navBackdrop"></div>' +
-				'</div></div>');
+	/* console navigation area */
+	const consoleNav = document.querySelector('.mdw-ConsoleNavigation');
+	if (consoleNav) {
+		if (!document.getElementById('navBackdrop')) {
+			consoleNav.innerHTML = `
+				<div class="compact_nav_icon_menu">
+					<div class="compact_nav_icon hint--info hint--right hint--rounded" 
+						 data-subtitle="Console" id="navBackdrop" aria-label="Console" 
+						 role="button" tabindex="0">
+						<div class="navBackdrop"></div>
+					</div>
+				</div>`;
 
-			$("#navBackdrop").on('click', function() {
-				$('[class^="cactiConsoleNavigation"]').removeClass('visible');
-				cactiConsoleAllowed ? loadUrl({url: urlPath + 'index.php'}) : window.open('https://cacti.net', '_blank');
+			document.getElementById('navBackdrop').addEventListener('click', () => {
+				document.querySelectorAll('[class^="cactiConsoleNavigation"]').forEach(el => el.classList.remove('visible'));
+				if (typeof loadUrl === 'function' && window.cactiConsoleAllowed) {
+					loadUrl({ url: urlPath + 'index.php' });
+				} else {
+					window.open('https://cacti.net', '_blank');
+				}
 			});
 		}
 
-		if ($('#compact_tab_menu').length === 0 && $('#compact_user_menu').length === 0) {
-			$('.mdw-ConsoleNavigation').append(
-				'<div class="compact_nav_icon_menu" id="compact_tab_menu"></div>' +
-				'<div class="compact_nav_icon_menu" id="compact_user_menu"></div>'
-			);
-
-			/**********************************************************************************************************/
+		if (!document.getElementById('compact_tab_menu')) {
+			consoleNav.insertAdjacentHTML('beforeend', `
+				<div class="compact_nav_icon_menu" id="compact_tab_menu"></div>
+				<div class="compact_nav_icon_menu" id="compact_user_menu"></div>
+			`);
 
 			if (typeof cactiNavigation === 'function') {
-				const navOptions = {dock: {top: false, bottom: false}, window: {enabled: false}};
-
-				const navManager = new cactiNavigation(navOptions);
+				const navManager = new cactiNavigation({ dock: { top: false, bottom: false }, window: { enabled: false } });
 				const boxManager = new cactiBox();
 				const btnManager = new cactiButton();
 
-				// Register instances globally using the new manager
 				mdw.obj.ctrl.nav = navManager;
 				mdw.obj.ctrl.box = boxManager;
 				mdw.obj.ctrl.btn = btnManager;
 
 				const processedBoxConfigs = midwinter.navigationBox.buildConfigs(uiConfig.boxes);
+
 				navManager.checkConfigurationIntegrity(processedBoxConfigs, uiConfig.buttons);
 
-				uiConfig.buttons.forEach(btn => btnManager.add(btn));
+				// register buttons and include hotkey attribute from config
+				uiConfig.buttons.forEach(btn => {
+					// the btnManager.add will now handle the rendering including data-hotkey
+					btnManager.add(btn);
+				});
 
-				/* boxes are added; their child classes handle their own context menus internally */
 				processedBoxConfigs.forEach(box => {
 					boxManager.add(box);
 					boxManager.restore(box.helper);
 				});
-
-			} else {
-				console.error('[Midwinter] cactiNavigation class is not defined. Check script loading.');
 			}
-
-			/**********************************************************************************************************/
 		}
 	}
 
-	/* CLEAN UP */
-	$('#menu_main_console').remove();
-	$('a.menu_parent').removeClass('mdw-active').prop('inert', true);
-
-	/* visibility check for settings icon */
-	const $settingsBox = $('[class^="mdw-ConsoleNavigationBox"][data-helper="settings"]');
-	$('[class^="compact_nav_icon"][data-helper="settings"]').toggleClass('hide', $settingsBox.has('li').length === 0);
-
-	$('#main').off('resize').on('resize', function() {
-		$('#main .saveRowParent').width($(this).width());
+	/* clean up legacy elements */
+	document.getElementById('menu_main_console')?.remove();
+	document.querySelectorAll('a.menu_parent').forEach(el => {
+		el.classList.remove('mdw-active');
+		el.inert = true;
 	});
 }
 
+
 function setupThemeActions() {
+/*
 	$('[data-scope="theme"][id^="mdw_"]:not([type="range"]), ' +
 		'a[data-scope="theme"], ' +
 		'i[data-func!=""][data-func]'
@@ -520,7 +757,7 @@ function setupThemeActions() {
 		let fname = $(this).attr('data-func');
 		if(is_function(fname)) window[fname](e);
 	});
-
+*/
 	document.addEventListener("fullscreenchange", fullScreenChangeHandler);
 
 	// make popover draggable
@@ -540,255 +777,169 @@ function redirect(event) {
 	window.location = event.data.param;
 }
 
-function setNavigationBoxColumns(event) {
-	event.preventDefault();
-	let storage = Storages.localStorage;
-	let helper = event.target.getAttribute('data-helper');
-	let value = event.target.getAttribute('data-value');
-	$('[class^="mdw-ConsoleNavigationBox"][data-helper="' + helper + '"]').attr('data-width', value);
-	storage.set('midWinter_widthNavigationBox_'+helper, value);
-}
-
-function toggleTableColumn(event) {
-	let storage = Storages.localStorage;
-	let tableHash = event.target.dataset.table;
-	let cIndex = parseInt(event.target.dataset.column);
-	let cClass = 'no-col'+cIndex;
-	let storage_table_headers = storage.get('midWinter_' + tableHash);
-
-	storage_table_headers[1][cIndex-1][4] = Number(event.target.checked);
-	if(event.target.checked === false) {
-		storage_table_headers[0].push(cClass);
-		$('table[data-table="'+tableHash+'"]').addClass(cClass);
-	}else {
-		let index = storage_table_headers[0].indexOf(cClass);
-		if(index !== -1) {
-			storage_table_headers[0].splice(index, 1);
-		}
-		$('table[data-table="'+tableHash+'"]').removeClass(cClass);
-	}
-	storage.set('midWinter_' + tableHash, JSON.stringify(storage_table_headers));
-
-	$('#mdw-columns-reset').toggleClass('inactive', (storage_table_headers[0].length === 0));
-}
-
-function resetTableColumns(event) {
-	event.preventDefault();
-	let cIndex;
-	let storage = Storages.localStorage;
-	let tableHash = event.target.getAttribute('data-helper');
-	let storage_table_headers = storage.get('midWinter_' + tableHash);
-
-	/* remove "hide-column-classes" from table */
-	$('[data-table="'+tableHash+'"]').removeClass(storage_table_headers[0]);
-
-	/* update local storage */
-	storage_table_headers[0] = [];
-	for(cIndex in storage_table_headers[1]) {
-		storage_table_headers[1][cIndex][4] = 1;
-	}
-	storage.set('midWinter_' + tableHash, JSON.stringify(storage_table_headers));
-
-	/* reset all column input fields */
-	$('#mdw-columns-reset').parent().find('input[type=checkbox]').prop('checked', true).attr('aria-checked', 'true').attr('data-prev-check', 'true');
-
-	/* set reset button/link in inactive mode */
-	$('#mdw-columns-reset').addClass('inactive');
-}
-
 function togglePwdInputField(event) {
-	let helper = event.target.getAttribute('data-helper');
+	// get helper id from data attribute
+	const helper = event.target.getAttribute('data-helper');
 
-	let destination = $('input[id="' + helper + '"]');
-	if ( destination.length) {
-		if(destination.attr('type') === 'password') {
-			destination.attr('type', 'text');
-		}else {
-			destination.attr('type', 'password');
+	// find destination input via native id selector
+	const destination = document.getElementById(helper);
+
+	if (destination) {
+		// toggle between password and text type
+		if (destination.type === 'password') {
+			destination.type = 'text';
+		} else {
+			destination.type = 'password';
 		}
-		event.target.classList.toggle('ti-lock')
+
+		// toggle icon classes using native classList
+		event.target.classList.toggle('ti-lock');
 		event.target.classList.toggle('ti-lock-off');
 	}
 }
 
+/**
+ * handles the restructuring of cacti table elements into midwinter layout
+ * modernized to avoid redundant DOM operations
+ */
 function setupDefaultElements() {
-	let popover = $(mdw.domMap.mdwPopOver); // Use Mapping
+	const popover = document.querySelector(mdw.domMap.mdwPopOver);
 
-	if (popover.hasClass('hidden')) {
-		let storage = Storages.localStorage;
+	// only proceed if popover is hidden (active page layout)
+	if (popover && popover.classList.contains('hidden')) {
 
-		// --- Cleanup legacy Cacti elements using Mapping ---
-		$(mdw.domMap.cactiBreadcrumb + ', .cactiPageHead, .cactiShadow, .cactiConsoleNavigationArea').detach();
+		// cleanup legacy cacti elements
+		const legacyElements = document.querySelectorAll(mdw.domMap.cactiBreadcrumb + ', .cactiPageHead, .cactiShadow, .cactiConsoleNavigationArea, .stickyContainer');
+		legacyElements.forEach(el => el.remove());
 
-		if ($('.stickyContainer').length) {
-			$('.stickyContainer').remove();
-		}
-
-		// --- Ensure elementsOnTop container is available ---
-		if (!$("#elementsOnTop").length) {
-			$('<div id="elementsOnTop" class="elementsOnTop">' +
-				'<div id="tableTitleOnTop" class="elementOnTop tableTitleOnTop"></div>' +
-				'<div id="tableNavBarOnTop" class="elementOnTop tableNavBarOnTop"></div>' +
-				'<div id="tableActionOnTop" class="elementOnTop tableActionOnTop"></div>' +
-				'<div id="tableTabsOnTop" class="elementOnTop tableTabsOnTop"></div>' +
-				'</div>').prependTo(mdw.domMap.cactiNavRight); // Use Mapping
-		}
-
-		$(".elementOnTop").empty();
-		$("#mdw-ActionBarMiddle").empty();
-
-		// --- Move table elements to Midwinter containers ---
-		if ($("#main > div.tabs:first").length) {
-			$("#main > div.tabs:first").closest('div').detach().appendTo('#tableTabsOnTop');
-		}
-
-		if ($("#main div.cactiTableTitleRow").length) {
-			const $titleRow = $("#main div.cactiTableTitleRow:first");
-			$titleRow.children(".cactiTableTitle").detach().appendTo('#tableTitleOnTop');
-			$titleRow.children(".cactiTableAction:not(:empty)").detach().appendTo('#tableActionOnTop');
-			$titleRow.children(".cactiTableButton:not(:empty)").detach().appendTo('#mdw-ActionBarMiddle');
-			$titleRow.remove();
-
-			if ($("#main div.saveRow").length) {
-				$("#main div.saveRow").detach().appendTo('#tableActionOnTop');
-			} else if ($("#main div.actionsDropdown").length) {
-				$("#main div.actionsDropdown > div > span").detach().appendTo('#tableActionOnTop');
-			}
-
-			if ($("#main div.navBarNavigation").length) {
-				$("#main div.navBarNavigation:first").clone().appendTo('#tableNavBarOnTop');
+		// ensure elementsOnTop container is available
+		let onTop = document.getElementById('elementsOnTop');
+		if (!onTop) {
+			const navRight = document.querySelector(mdw.domMap.cactiNavRight);
+			if (navRight) {
+				navRight.insertAdjacentHTML('afterbegin', `
+					<div id="elementsOnTop" class="elementsOnTop">
+						<div id="tableTitleOnTop" class="elementOnTop tableTitleOnTop"></div>
+						<div id="tableNavBarOnTop" class="elementOnTop tableNavBarOnTop"></div>
+						<div id="tableActionOnTop" class="elementOnTop tableActionOnTop"></div>
+						<div id="tableTabsOnTop" class="elementOnTop tableTabsOnTop"></div>
+					</div>`);
+				onTop = document.getElementById('elementsOnTop');
 			}
 		}
 
-		// *************************************************************************************************************
+		// clear temporary containers before re-filling
+		document.querySelectorAll(".elementOnTop, #mdw-ActionBarMiddle").forEach(el => el.innerHTML = '');
 
-		/* PLUGIN REFRESH TRIGGER */
-		if (typeof midwinter.navigationBox.refreshPlugins === 'function') {
+		// move table elements to midwinter containers
+		const main = document.getElementById('main');
+		if (main) {
+			// move tabs
+			const tabs = main.querySelector('div.tabs:first-child');
+			if (tabs) {
+				const tabContainer = document.getElementById('tableTabsOnTop');
+				if (tabContainer) tabContainer.appendChild(tabs.closest('div'));
+			}
+
+			// move table title and actions
+			const titleRow = main.querySelector('div.cactiTableTitleRow');
+			if (titleRow) {
+				const title = titleRow.querySelector('.cactiTableTitle');
+				const action = titleRow.querySelector('.cactiTableAction:not(:empty)');
+				const buttons = titleRow.querySelector('.cactiTableButton:not(:empty)');
+
+				if (title) document.getElementById('tableTitleOnTop').appendChild(title);
+				if (action) document.getElementById('tableActionOnTop').appendChild(action);
+				if (buttons) document.getElementById('mdw-ActionBarMiddle').appendChild(buttons);
+
+				titleRow.remove();
+			}
+
+			// handle save rows and nav bars
+			const saveRow = main.querySelector('div.saveRow');
+			const actionDrop = main.querySelector('div.actionsDropdown');
+
+			if (saveRow) {
+				document.getElementById('tableActionOnTop').appendChild(saveRow);
+			} else if (actionDrop) {
+				document.getElementById('tableActionOnTop').appendChild(actionDrop);
+			}
+
+			const navBar = main.querySelector('div.navBarNavigation');
+			if (navBar) {
+				document.getElementById('tableNavBarOnTop').appendChild(navBar.cloneNode(true));
+			}
+		}
+
+		// modernize filter inputs
+		const filters = [
+			{ id: 'filter',  placeholder: window.searchFilter },
+			{ id: 'filterd', placeholder: window.searchFilter },
+			{ id: 'rfilter', placeholder: window.searchRFilter }
+		];
+
+		filters.forEach(f => {
+			const el = document.getElementById(f.id);
+			if (el && !el.nextElementSibling?.classList.contains('ti-search')) {
+				el.insertAdjacentHTML('afterend', '<i class="ti ti-search filter"></i>');
+				el.setAttribute('autocomplete', 'off');
+				el.setAttribute('placeholder', f.placeholder || '');
+				el.classList.add('ui-state-default', 'ui-corner-all');
+
+				const parentTd = el.closest('td');
+				if (parentTd) parentTd.style.whiteSpace = 'nowrap';
+			}
+		});
+
+		// apply global styles to inputs
+		document.querySelectorAll('input[type="text"], input[type="password"], input[type="checkbox"], textarea')
+			.forEach(el => el.classList.add('ui-state-default', 'ui-corner-all'));
+
+		// legacy row fix
+		document.querySelectorAll('tr[id*="line"]:not(.disabled_row) .formCheckboxLabel')
+			.forEach(label => label.removeAttribute('for'));
+
+		// trigger plugin refresh
+		if (typeof midwinter?.navigationBox?.refreshPlugins === 'function') {
 			midwinter.navigationBox.refreshPlugins();
 		}
 
-		// *************************************************************************************************************
-
-
-		// Add nice search filter to filters
-		if ($('input[id="filter"]').length > 0 && $('input[id="filter"] > i[class="ti ti-search filter"]').length < 1) {
-			$('input[id="filter"]').after("<i class='ti ti-search filter'/>").attr('autocomplete', 'off').attr('placeholder', searchFilter).parent('td').css('white-space', 'nowrap');
-		}
-
-		if ($('input[id="filterd"]').length > 0 && $('input[id="filterd"] > i[class="ti ti-search filter"]').length < 1) {
-			$('input[id="filterd"]').after("<i class='ti ti-search filter'/>").attr('autocomplete', 'off').attr('placeholder', searchFilter).parent('td').css('white-space', 'nowrap');
-		}
-
-		if ($('input[id="rfilter"]').length > 0 && $('input[id="rfilter"] > i[class="ti ti-search filter"]').length < 1) {
-			$('input[id="rfilter"]').after("<i class='ti ti-search filter'/>").attr('autocomplete', 'off').attr('placeholder', searchRFilter).parent('td').css('white-space', 'nowrap');
-		}
-
-		$('input#filter, input#rfilter').addClass('ui-state-default ui-corner-all');
-		$('input[type="text"], input[type="password"], input[type="checkbox"], textarea').not('image').addClass('ui-state-default ui-corner-all');
-
-		/* Highlight sortable table columns */
-		$('.tableHeader th').has('i.fa-sort').removeClass('tableHeaderColumnHover tableHeaderColumnSelected');
-		$('.tableHeader th').has('i.fa-sort-up').addClass('tableHeaderColumnSelected');
-		$('.tableHeader th').has('i.fa-sort-down').addClass('tableHeaderColumnSelected');
-		$('.tableHeader th').has('i.fa-sort').hover(
-			function () {
-				$(this).addClass("tableHeaderColumnHover");
-			}, function () {
-				$(this).removeClass("tableHeaderColumnHover");
-			}
-		);
-
-
-		//$('td:nth-child(2), th:nth-child(2)').addClass('hide');
-
-
-		$('input#filter, input#rfilter').addClass('ui-state-default ui-corner-all');
-
-		$('input[type="text"], input[type="password"], input[type="checkbox"], textarea').not('image').addClass('ui-state-default ui-corner-all');
-
-		// really shitty workaround to make custom row checkboxes clickable again. :(
-		$('tr[id*="line"]:not(.disabled_row)').each(function (data) {
-			$(this).find('.formCheckboxLabel').removeAttr('for');
-		});
-
-		// Turn file buttons into jQueryUI buttons
-		$('.import_label').button();
-		$('.import_button').change(function () {
-			text = this.value;
-			setImportFile(text);
-		});
-
-		setImportFile(noFileSelected);
-
-		function setImportFile(fileText) {
-			$('.import_text').text(fileText);
-		}
-
-		// Hide the graph icons until you hover
-		$('.graphDrillDown').hover(
-			function () {
-				element = $(this);
-
-				// hide the previously shown element
-				if (element.attr('id').replace('dd', '') != graphMenuElement && graphMenuElement > 0) {
-					$('#dd' + graphMenuElement).find('.iconWrapper:first').hide(300);
-				}
-
-				clearTimeout(graphMenuTimer);
-				graphMenuTimer = setTimeout(function () {
-					showGraphMenu(element);
-				}, 400);
-			},
-			function () {
-				element = $(this);
-				clearTimeout(graphMenuTimer);
-				graphMenuTimer = setTimeout(function () {
-					hideGraphMenu(element);
-				}, 400);
-
-				if (typeof spikeKillClose == 'function') {
-					spikeKillClose();
-				}
-			}
-		);
-
-		function showGraphMenu(element) {
-			element.find('.spikekillMenu').menu('disable');
-			element.find('.iconWrapper').show(300, function () {
-				graphMenuElement = element.attr('id').replace('dd', '');
-				$(this).find('.spikekillMenu').menu('enable');
-				$(this).css('display', 'block');
-			});
-		}
-
-		function hideGraphMenu(element) {
-			element.find('.spikekillMenu').menu('disable');
-			element.find('.iconWrapper').hide(300, function () {
-				$(this).find('.spikekillMenu').menu('enable');
-			});
-		}
-
-		setNavigationScroll();
+		if (typeof setNavigationScroll === 'function') setNavigationScroll();
 	}
 }
 
-function restoreLocalStorage() {
-    if (mdw.cache.storage.isSet('midWinter') === false) {
-        refreshLocalStorage();
-    } else {
-        mdw.session = JSON.parse(lzjs.decompress(mdw.cache.storage.get('midWinter')));
-    }
-    setDocumentAttribute('theme-color',         mdw.session.theme.color.mode );
-    setDocumentAttribute('theme-color-auto',    mdw.session.theme.color.auto );
-    setDocumentAttribute('zoom-level',          mdw.session.theme.font.zoom );
-    setDocumentAttribute('animations',          mdw.session.theme.boxes.animated );
-    setDocumentAttribute('auto-table-layout',   mdw.session.theme.mobile.autoTableLayout );
-    setDocumentAttribute('controls-subtitle',   mdw.session.theme.controls.subTitle );
-}
+
+
 
 function refreshLocalStorage() {
     mdw.cache.storage.set('midWinter', lzjs.compress(JSON.stringify(mdw.session)));
 }
+
+/**
+ * sets a data attribute on the document element
+ * @param {string} name - attribute name (without data- prefix)
+ * @param {string} value - value to set
+ */
+function setDocumentAttribute(name, value) {
+	// native setAttribute on <html> element
+	document.documentElement.setAttribute('data-' + name, value);
+	// update CSS variable
+	if (name === 'zoom-level') {
+		document.documentElement.style.setProperty('--mdw-zoom', value + '%');
+	}
+}
+
+/**
+ * retrieves a data attribute from the document element
+ * @param {string} name - attribute name (without data- prefix)
+ * @returns {string|null}
+ */
+function getDocumentAttribute(name) {
+	// native getAttribute from <html> element
+	return document.documentElement.getAttribute('data-' + name);
+}
+
+
 
 function themeLoader(state='off', force = false) {
 	if (state === 'on') {
@@ -800,152 +951,174 @@ function themeLoader(state='off', force = false) {
 	}
 }
 
-function setDocumentAttribute(name, value) {
-	document.documentElement.setAttribute('data-'+name, value);
-}
-
-function getDocumentAttribute(name) {
-	return document.documentElement.getAttribute('data-'+name);
-}
 
 function setCookieValue(name, value) {
-	$.cookie(name, value.toString(), { expires: 365, path: urlPath + ';SameSite=Lax', secure: ( window.location.protocol === "https:") });
+	const days = 365;
+	const date = new Date();
+	date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+
+	const expires = "; expires=" + date.toUTCString();
+	const secure = (window.location.protocol === "https:") ? "; Secure" : "";
+	const path = "; path=" + (typeof urlPath !== 'undefined' ? urlPath : '/') + "; SameSite=Lax";
+
+	document.cookie = name + "=" + (value || "") + expires + path + secure;
 }
 
 function getCookieValue(name) {
-	return $.cookie(name);
-}
-
-function toggleColorMode() {
-	if (mdw.session.theme.color.auto !== 'on') {
-        mdw.session.theme.color.mode = (mdw.session.theme.color.mode === 'dark') ? 'light' : 'dark';
-		refreshLocalStorage();
-		setDocumentAttribute('theme-color', mdw.session.theme.color.mode);
-		setCookieValue('CactiColorMode', mdw.session.theme.color.mode);
-		initializeGraphs(true);
+	const nameEQ = name + "=";
+	const ca = document.cookie.split(';');
+	for (let i = 0; i < ca.length; i++) {
+		let c = ca[i];
+		while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+		if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
 	}
+	return null;
 }
 
-function toggleColorModeAuto() {
-    mdw.session.theme.color.auto = (mdw.session.theme.color.auto === 'on') ? 'off' : 'on';
-    refreshLocalStorage();
-	setDocumentAttribute('theme-color-auto', mdw.session.theme.color.auto);
-	setThemeColor();
-	/* update output field beside input selector */
-	$('#mdw_themeColorModeAutoValue').val(mdw.session.theme.color.auto);
-}
-
-function changeGuiFontSize(change=true) {
-    mdw.session.theme.font.zoom = $('#mdw_themeFontSize').val();
-	if(change) {
-		refreshLocalStorage();
-        setDocumentAttribute('zoom-level', mdw.session.theme.font.zoom);
-	}
-	/* update output field beside input selector */
-	$('#mdw_themeFontSizeValue').val((parseFloat(mdw.session.theme.font.zoom) + 25).toFixed(1) + ' %');
-}
-
-function toggleGuiAnimations() {
-    mdw.session.theme.boxes.animated = (mdw.session.theme.boxes.animated === 'on') ? 'off' : 'on';
-    refreshLocalStorage();
-	setDocumentAttribute('animations', mdw.session.theme.boxes.animated);
-	/* update output field beside input selector */
-	$('#mdw_themeAnimationsValue').val(mdw.session.theme.boxes.animated);
-}
-
-function toggleControlsSubtitle() {
-    mdw.session.theme.controls.subTitle = (mdw.session.theme.controls.subTitle === 'on') ? 'off' : 'on';
-    refreshLocalStorage();
-	setDocumentAttribute('controls-subtitle', mdw.session.theme.controls.subTitle);
-	/* update output field beside input selector */
-	$('#mdw_themeControlsSubTitleValue').val(mdw.session.theme.controls.subTitle);
-}
-
-function toggleAutoTableLayout() {
-    mdw.session.theme.mobile.autoTableLayout = (mdw.session.theme.mobile.autoTableLayout === 'on') ? 'off' : 'on';
-    refreshLocalStorage();
-	setDocumentAttribute('auto-table-layout', mdw.session.theme.mobile.autoTableLayout);
-	/* update output field beside input selector */
-	$('#mdw_themeAutoTableLayoutValue').val(mdw.session.theme.mobile.autoTableLayout);
-}
-
+/**
+ * synchronizes theme color settings and handles auto-detection
+ */
 function setThemeColor() {
-	$('#mdw_themeColorMode').attr('disabled', (mdw.session.theme.color.auto === 'on'));
+	const themeColorInput = document.getElementById('mdw_themeColorMode');
+	if (themeColorInput) {
+		themeColorInput.disabled = (mdw.session.theme.color.auto === 'on');
+	}
 	detectSystemColorSetup(mdw.session.theme.color.auto);
 }
 
+/**
+ * manages the system-level color scheme observer
+ * @param {string} state - 'on' or 'off'
+ */
 function detectSystemColorSetup(state) {
-	let storage = Storages.localStorage;
-	const systemColorMode = window.matchMedia("(prefers-color-scheme: dark)");
-
-	let _listener = (e) => { checkThemeColorSetup((e.matches) ? 'dark' : 'light'); };
-
-	if(state === 'on') {
-		systemColorMode.addEventListener('change', _listener);
-		checkThemeColorSetup(systemColorMode.matches === true ? 'dark' : 'light');
-	}else {
-		systemColorMode.removeEventListener('change', _listener);
-		checkThemeColorSetup(mdw.session.theme.color.mode);
+	// singleton: ensure the MediaQueryList object exists only once
+	if (!mdw.cache.systemQuery) {
+		mdw.cache.systemQuery = window.matchMedia('(prefers-color-scheme: dark)');
 	}
-}
 
-function checkThemeColorSetup(color_mode) {
-	let document_color_mode = document.documentElement.getAttribute('data-theme-color');
-	let cookie_color_mode = getCookieValue('CactiColorMode');
+	const mql = mdw.cache.systemQuery;
 
-	if (document_color_mode !== color_mode || cookie_color_mode !== color_mode) {
-        refreshLocalStorage();
-		setDocumentAttribute('theme-color', color_mode)
-		setCookieValue('CactiColorMode', color_mode);
-		initializeGraphs(true);
-	}
-}
+	if (state === 'on') {
+		// guard: only attach the listener if it's not already marked as active
+		if (!mdw.cache.colorListenerActive) {
 
-function preparePopOver(html) {
-	const container = 'mdw-GridContainer-PopOver';
-	const overlay = 'mdw-GridContainer-Overlay';
+			// helper to support both modern and legacy browsers (Ubuntu/Webkit)
+			if (mql.addEventListener) {
+				mql.addEventListener('change', mdw.cache.colorListener);
+			} else {
+				mql.addListener(mdw.cache.colorListener);
+			}
 
-	const popover = $('#'+container);
-	const screenOverlay = $('#'+overlay);
-
-	if ( popover !== 'undefined' && screenOverlay !== 'undefined' ) {
-
-		let title = popover.find('.mdw-PopOverTitle:first');
-		let content = popover.find('.mdw-PopOverContent:first');
-		let footer = popover.find('.mdw-PopOverFooter:first');
-
-		content.html(html);
-		title.html( content.find('.cactiTableTitleRow:first').detach() );
-		footer.html( content.find('.saveRow:first').detach() );
-
-		popover.find('button[value="cancel"]')
-				.attr('onclick', '')
-				.on('click', function(e) {
-					e.preventDefault();
-					e.stopPropagation();
-					togglePopOver(false);
-					return false;
-				});
-
-		popover.find('#action_confirm')
-				.on('submit', function(e) {
-					togglePopOver(false);
-						//popover.find('.mdw-PopOverElements').empty();
-				});
-
-		togglePopOver( true);
-	}
-}
-
-function togglePopOver(force) {
-	let popover = $('.mdw-PopOver');
-	if (popover !== 'undefined') {
-		if (typeof force == 'boolean') {
-			popover.toggleClass('hidden', (force !== true))
-		}else {
-			popover.toggleClass('hidden');
+			mdw.cache.colorListenerActive = true;
+			console.log('[Midwinter] System color observer attached (Singleton).');
 		}
+
+		// perform immediate sync regardless of listener attachment
+		mdw.actions.checkThemeColorSetup(mql.matches ? 'dark' : 'light');
+
+	} else {
+		// stop observing if it was active
+		if (mdw.cache.colorListenerActive) {
+			if (mql.removeEventListener) {
+				mql.removeEventListener('change', mdw.cache.colorListener);
+			} else {
+				mql.removeListener(mdw.cache.colorListener);
+			}
+
+			mdw.cache.colorListenerActive = false;
+			console.log('[Midwinter] System color observer detached.');
+		}
+
+		// return to manual session mode
+		mdw.actions.checkThemeColorSetup(mdw.session.theme.color.mode);
 	}
+}
+
+/**
+ * processes html content for the popover and manages its sub-elements
+ * @param {string} html - the raw html content from cacti
+ */
+function preparePopOver(html) {
+	// get references to the main popover containers
+	const popover = document.getElementById('mdw-GridContainer-PopOver');
+	const screenOverlay = document.getElementById('mdw-GridContainer-Overlay');
+
+	if (popover && screenOverlay) {
+		// locate target sub-elements for title, content and footer
+		const titleTarget = popover.querySelector('.mdw-PopOverTitle');
+		const contentTarget = popover.querySelector('.mdw-PopOverContent');
+		const footerTarget = popover.querySelector('.mdw-PopOverFooter');
+
+		// create a temporary container to parse the incoming html string
+		const temp = document.createElement('div');
+		temp.innerHTML = html;
+
+		// extract specific cacti elements (title row and save row) from the source
+		const titleSource = temp.querySelector('.cactiTableTitleRow');
+		const footerSource = temp.querySelector('.saveRow');
+
+		// move elements to their respective targets if found
+		if (contentTarget) {
+			contentTarget.innerHTML = '';
+			contentTarget.appendChild(temp);
+		}
+
+		if (titleTarget && titleSource) {
+			titleTarget.innerHTML = '';
+			titleTarget.appendChild(titleSource);
+		}
+
+		if (footerTarget && footerSource) {
+			footerTarget.innerHTML = '';
+			footerTarget.appendChild(footerSource);
+		}
+
+		// sanitize and re-bind the cancel button functionality
+		const cancelButtons = popover.querySelectorAll('button[value="cancel"]');
+		cancelButtons.forEach(btn => {
+			// remove any inline onclick handlers and set fresh native listener
+			btn.onclick = null;
+			btn.addEventListener('click', (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				togglePopOver(false);
+			}, { once: true });
+		});
+
+		// handle the confirm action form submission
+		const confirmForm = popover.querySelector('#action_confirm');
+		if (confirmForm) {
+			confirmForm.addEventListener('submit', () => {
+				togglePopOver(false);
+			}, { once: true });
+		}
+
+		// finally display the popover
+		togglePopOver(true);
+	}
+}
+
+/**
+ * toggles the visibility of the popover and its overlay
+ * @param {boolean|null} force - optional state to enforce
+ */
+function togglePopOver(force) {
+	// get all elements with the popover class (container and overlay)
+	const popovers = document.querySelectorAll('.mdw-PopOver');
+
+	popovers.forEach(el => {
+		if (typeof force === 'boolean') {
+			// enforce specific state if provided
+			if (force === true) {
+				el.classList.remove('hidden');
+			} else {
+				el.classList.add('hidden');
+			}
+		} else {
+			// toggle class if no force state is defined
+			el.classList.toggle('hidden');
+		}
+	});
 }
 
 function fullScreen(event) {
@@ -957,140 +1130,146 @@ function fullScreen(event) {
 }
 
 function fullScreenChangeHandler() {
+	const icon = document.querySelector('.compact_nav_icon[data-helper="fullScreen"] > i');
+	if (!icon) return;
+
 	if (document.fullscreenElement) {
-		$('.compact_nav_icon[data-helper="fullScreen"]>i').removeClass('ti-maximize').addClass('ti-minimize');
-	}else {
-		$('.compact_nav_icon[data-helper="fullScreen"]>i').addClass('ti-maximize').removeClass('ti-minimize');
+		icon.classList.replace('ti-maximize', 'ti-minimize');
+	} else {
+		icon.classList.replace('ti-minimize', 'ti-maximize');
 	}
 }
-
 
 function kioskMode(event = false) {
+	const mainElement = document.querySelector(mdw.domMap.mdwMain);
+	const btnManager = mdw.obj.ctrl.btn;
+
 	if (event === false) {
 		setDocumentAttribute('kiosk-mode', 'off');
-		if(isMobile.any() != null) {
-			$('#mdw-Main').off('click');
+
+		if (mainElement) {
+			mainElement.removeEventListener('click', handleKioskClick);
 		}
-	}else {
-		toggleConsoleNavigationBox(event);
+		mdw.cache.tap.count = 0;
+	} else {
+		// use button manager to close open console navigation box
+		if (btnManager && typeof btnManager.toggleConsoleNavigationBox === 'function') {
+			btnManager.toggleConsoleNavigationBox(event);
+		}
+
 		setDocumentAttribute('kiosk-mode', 'on');
-		if(isMobile.any() != null) {
-			$('#mdw-Main').off('click').on('click', function(e) {
-				let tap;
-				mdw.cache.tab.count++;
 
-				if(mdw.cache.tab.count === 1) {
-					mdw.cache.tab.clientX = e.clientX;
-					mdw.cache.tab.clientY = e.clientY;
-
-					tap = setTimeout(function(){
-						mdw.cache.tab.count = 0;
-						mdw.cache.tab.clientX = 0;
-						mdw.cache.tab.clientY = 0;
-					},300);
-				}else if (mdw.cache.tab.count === 2) {
-					if(Math.abs(e.clientX-mdw.cache.tab.clientX) < 10 && Math.abs(e.clientY-mdw.cache.tab.clientY) < 10) {
-						e.preventDefault();
-						clearTimeout(tap);
-						mdw.cache.tab.count = 0;
-						mdw.cache.tab.clientX = 0;
-						mdw.cache.tab.clientY = 0;
-						kioskMode(false);
-					}
-				}else {
-					mdw.cache.tab.count = 0;
-					mdw.cache.tab.clientX = 0;
-					mdw.cache.tab.clientY = 0;
-					kioskMode(false);
-				}
-			});
+		if (typeof isMobile !== 'undefined' && isMobile.any() !== null && mainElement) {
+			mainElement.addEventListener('click', handleKioskClick);
 		}
 	}
 }
 
-/*
-function setHotKeys() {
-	if(mdw.cache.classes.includes('hotkeys')) {
-		hotkeys('c+d,c+l,c+p,c+F1,F5,SHIFT+m+d, SHIFT+m+g, SHIFT+p, SHIFT+c+s, ESC', function (event, handler) {
-			event.preventDefault();
-			switch (handler.key) {
-				case 'c+d':
-					loadUrl({url:urlPath+'index.php'});
-					break;
-				case 'c+l':
-					loadUrl({url:urlPath+'graph_view.php?action=list'});
-					break;
-				case 'c+p':
-					loadUrl({url:urlPath+'graph_view.php?action=preview'});
-					break;
-				case 'F5':
-					togglePopOver( false);
-					loadUrl({url:window.location.href});
-					break;
-				case 'SHIFT+m+d':
-					loadUrl({url:urlPath+'host.php'});
-					break;
-				case 'SHIFT+m+g':
-					loadUrl({url:urlPath+'graphs.php'});
-					break;
-				case 'SHIFT+p':
-					loadUrl({url:urlPath+'auth_profile.php?action=edit'});
-					break;
-				case 'SHIFT+c+s':
-					loadUrl({url:urlPath+'settings.php'});
-					break;
-				case 'ESC':
-					kioskMode(false);
-					togglePopOver( false);
-					break;
-				default:
-					alert(event);
+/**
+ * separate handler for double-tap detection
+ */
+function handleKioskClick(e) {
+	mdw.cache.tap.count++;
 
-			}
-			return false;
-		});
-	}
-}
-*/
+	if (mdw.cache.tap.count === 1) {
+		mdw.cache.tap.clientX = e.clientX;
+		mdw.cache.tap.clientY = e.clientY;
 
+		mdw.cache.tap.timer = setTimeout(function() {
+			mdw.cache.tap.count = 0;
+		}, 300);
 
-function loadScript(className, url='') {
-	if(!urlPath) {
-		let location = window.location.pathname;
-		let dirname = location.substring(0, location.lastIndexOf("/") + 1);
-		urlPath = (dirname.search('/install/') !== -1) ? dirname + '../' : dirname;
-	}
-
-	if(mdw.cache.classes.includes(className) === false) {
-		$.ajax({
-			dataType: 'script',
-			cache: true,
-			async: false,
-			url: urlPath + url,
-			success: mdw.cache.classes.push(className)
-		}).fail(function(html) {
-			console.error('error');
-			getPresentHTTPError(html);
-		});
-	}
-}
-
-function loadElement(elementName, url='', content_only=false) {
-	let element;
-	$.ajax({
-		dataType: 'html',
-		cache: false,
-		async: false,
-		url: urlPath + url,
-		success: function(html) {
-			element = (content_only) ? $(html).find('#'+elementName).html() : $(html).find('#'+elementName);
+	} else if (mdw.cache.tap.count === 2) {
+		if (Math.abs(e.clientX - mdw.cache.tap.clientX) < 20 && Math.abs(e.clientY - mdw.cache.tap.clientY) < 20) {
+			e.preventDefault();
+			clearTimeout(mdw.cache.tap.timer);
+			kioskMode(false);
+		} else {
+			mdw.cache.tap.count = 1;
+			mdw.cache.tap.clientX = e.clientX;
+			mdw.cache.tap.clientY = e.clientY;
 		}
-	}).fail(function(html) {
-		getPresentHTTPError(html);
+	}
+}
+
+/**
+ * loads scripts via native dom injection and returns a promise
+ * @param {string} className - unique name for the class
+ * @param {string} url - relative path to the script
+ * @returns {Promise} resolves when script is loaded
+ */
+function loadScript(className, url = '') {
+	if (mdw.cache.classes.includes(className)) {
+		return Promise.resolve();
+	}
+
+	return new Promise((resolve, reject) => {
+		if (typeof urlPath === 'undefined' || !urlPath) {
+			const location = window.location.pathname;
+			const dirname = location.substring(0, location.lastIndexOf("/") + 1);
+			urlPath = (dirname.search('/install/') !== -1) ? dirname + '../' : dirname;
+		}
+
+		const script = document.createElement('script');
+		script.src = urlPath + url;
+		script.async = false; // keep order
+
+		script.onload = () => {
+			mdw.cache.classes.push(className);
+			resolve();
+		};
+
+		script.onerror = () => {
+			console.error(`[Midwinter] failed to load: ${className}`);
+			reject();
+		};
+
+		document.head.appendChild(script);
 	});
-	return element;
 }
 
+/**
+ * loads a specific element from a remote url using the fetch api
+ * @param {string} elementName - the id of the element to extract
+ * @param {string} url - the relative url to fetch from
+ * @param {boolean} content_only - if true, only returns the inner html
+ * @returns {Promise<string>}
+ */
+async function loadElement(elementName, url = '', content_only = false) {
+	try {
+		const path = (typeof urlPath !== 'undefined') ? urlPath : '';
+
+		// fetch naturally includes cookies for same-origin requests
+		const response = await fetch(path + url, {
+			method: 'GET',
+			cache: 'no-cache'
+		});
+
+		if (!response.ok) {
+			throw new Error(`HTTP error! status: ${response.status}`);
+		}
+
+		const html = await response.text();
+
+		// parse html string natively
+		const temp = document.createElement('div');
+		temp.innerHTML = html;
+		const targetElement = temp.querySelector('#' + elementName);
+
+		if (!targetElement) {
+			return '';
+		}
+
+		return content_only ? targetElement.innerHTML : targetElement.outerHTML;
+
+	} catch (error) {
+		console.error(`[Midwinter] loadElement failed:`, error);
+		if (typeof getPresentHTTPError === 'function') {
+			getPresentHTTPError(error);
+		}
+		return '';
+	}
+}
 
 function is_function(f_name) {
 	return (typeof window[f_name] === 'function');
@@ -1102,91 +1281,6 @@ function is_function(f_name) {
 registry.midwinter = {
 	navigationBox : {
 		content: {
-			dashboards: function(){
-				let compact_tab_menu_content = '<ul class="nav">';
-
-				if (cactiConsoleAllowed) {
-					compact_tab_menu_content +=
-						'<li class="menuitem" id="menu_home">'
-						+    '<a class="menu_parent" href="#" inert>'
-						+        '<i class="menu_glyph ignore ti ti-crown"></i>'
-						+        '<span>'+cactiHome+'</span>'
-						+    '</a>'
-						+    '<ul>'
-						+        '<li><a href="'+urlPath+'index.php" class="pic" role="menuitem">'+cactiConsole+'</a></li>'
-						+    '</ul>'
-						+'</li>';
-				}
-
-				//#todo : string handling list, preview
-				if (cactiGraphsAllowed) {
-					compact_tab_menu_content +=
-						'<li class="menuitem" id="menu_tab_dashboard">'
-						+    '<a class="menu_parent" href="#" inert>'
-						+        '<i class="menu_glyph ignore ti ti-device-desktop-analytics"></i>'
-						+        '<span>Views</span>'
-						+    '</a>'
-						+    '<ul>'
-						+       '<li><a class="pic" role="menuitem" id="tab-graphs-list-view" href="' + urlPath + 'graph_view.php?action=list">List</a></li>'
-						+       '<li><a class="pic" role="menuitem" id="tab-graphs-pre-view" href="' + urlPath + 'graph_view.php?action=preview">Preview</a></li>'
-						+    '</ul>'
-						+'</li>';
-				}
-
-				let showMisc = false;
-				$('.maintabs nav ul li a.lefttab').each(function() {
-					if ($(this).attr('id') !== 'tab-console' && $(this).attr('id') !== 'tab-graphs') {
-						showMisc = true;
-						return true;
-					}
-				});
-				if (showMisc) {
-					compact_tab_menu_content +=
-						'<li class="menuitem" id="menu_tab_miscellaneous">'
-						+   '<a class="menu_parent" href="#" inert>'
-						+       '<i class="menu_glyph ignore ti ti-puzzle"></i>'
-						+       '<span>'+cactiMisc+'</span>'
-						+   '</a>'
-						+'<ul>';
-				}
-
-				$('.maintabs nav ul li a.lefttab').each( function() {
-					let id = $(this).attr('id');
-
-					if (id === 'tab-graphs' && $(this).parent().hasClass('maintabs-has-submenu') === false) {
-						$(this).parent().addClass('maintabs-has-submenu');
-
-						let submenu_tab_graphs_content =
-							'<ul id="submenu-tab-graphs" class="submenuoptions" style="display:none;">'
-							+ '<li><a id="tab-graphs-tree-view" href="' + urlPath + 'graph_view.php?action=tree"><span>' + treeView + '</span></a></li>'
-							+ '<li><a id="tab-graphs-list-view" href="' + urlPath + 'graph_view.php?action=list"><span>' + listView + '</span></a></li>'
-							+ '<li><a id="tab-graphs-pre-view" href="' + urlPath + 'graph_view.php?action=preview"><span>' + previewView + '</span></a></li>'
-							+ '</ul>';
-
-						$('<div class="dropdownMenu">' + submenu_tab_graphs_content + '</div>').appendTo('body');
-					} else if ($(this).attr('href') !== urlPath + 'index.php') {
-						compact_tab_menu_content += '<li><a class="pic" role="menuitem" href="' + $(this).attr('href') + '">' + $('.text_' + id).text() + '</a></li>';
-					}
-				});
-				compact_tab_menu_content += '</ul></li></ul></div>';
-				return compact_tab_menu_content;
-			},
-			settings: function() {
-				let element_menu = $('#menu').html();
-				if (element_menu === undefined) {
-					element_menu = loadElement('menu', 'about.php', true);
-				}
-				return element_menu;
-			},
-			displayOptions: function() {
-				return '<div class="displayOptions">'
-						+ '<div class="displayOptionsTap">'
-						+	'<label class="tab-label" for="tab-columns">Columns <i class="ti ti-chevron-down"></i></label>'
-						+	'<input data-scope="theme" id="tab-columns" class="tab-input" type="checkbox" checked/>'
-						+ 	'<div class="tab-columns tab-content"></div>'
-						+ '</div>'
-						+ '</div>';
-			},
 			help: function() {
 				return '<ul class="nav">'
 						+   '<li class="menuitem" id="menu_user_help">'
@@ -1249,95 +1343,6 @@ registry.midwinter = {
 						+           '<li><a href="'+urlPath+'logout.php">'+logout+'</a></li>'
 						+       '</ul>'
 						+   '</li>';
-			},
-			theme: function () {
-
-				let midWinter_Color_Mode = mdw.session.theme.color.mode;
-				let midWinter_Color_Mode_Auto = mdw.session.theme.color.auto;
-				let midWinter_Font_Size = mdw.session.theme.font.zoom;
-				let midWinter_Animations = mdw.session.theme.boxes.animated
-				let midWinter_ShownFontSizeValue = parseFloat(midWinter_Font_Size) + 25;
-				let midWinter_Auto_Table_Layout = mdw.session.theme.mobile.autoTableLayout;
-				let midWinter_Controls_SubTitle = mdw.session.theme.controls.subTitle;
-
-				return '<ul class="nav">'
-					+   '<li class="menuitem" id="menu_user_action">'
-					+       '<a class="menu_parent" href="#" inert>'
-					+           '<i class="menu_glyph ti ti-photo"></i>'
-					+           '<span>General</span>'
-					+       '</a>'
-					+       '<ul>'
-					+           '<li>'
-					+				'<div>' + 'Animations' + '</div>'
-					+				'<div>'
-					+					'<label class="checkboxSwitch">'
-					+						'<input data-scope="theme" id="mdw_themeAnimations" data-func="toggleGuiAnimations" class="formCheckbox" type="checkbox" name="mdw_themeAnimations" '+(midWinter_Animations === 'on' ? 'checked' : '')+'>'
-					+						'<span class="checkboxSlider checkboxRound"></span>'
-					+					'</label>'
-					+					'<label class="checkboxLabel checkboxLabelWanted" for="mdw_themeAnimations"></label>'
-					+                   '<output id="mdw_themeAnimationsValue">'+ midWinter_Animations +'</output>'
-					+				'</div>'
-					+           '</li>'
-					+           '<li>'
-					+				'<div>' + 'Show Control Names' + '</div>'
-					+				'<div>'
-					+					'<label class="checkboxSwitch">'
-					+						'<input data-scope="theme" id="mdw_themeControlsSubTitle" data-func="toggleControlsSubtitle" class="formCheckbox" type="checkbox" name="mdw_themeControlsSubtitle" '+(midWinter_Controls_SubTitle === 'on' ? 'checked' : '')+'>'
-					+						'<span class="checkboxSlider checkboxRound"></span>'
-					+					'</label>'
-					+					'<label class="checkboxLabel checkboxLabelWanted" for="mdw_themeControlsSubTitle"></label>'
-					+                   '<output id="mdw_themeControlsSubTitleValue">'+ midWinter_Controls_SubTitle +'</output>'
-					+				'</div>'
-					+           '</li>'
-					+           '<li>'
-					+				'<div>' + 'Zoom Level' + '</div>'
-					+				'<div>'
-					+						'<input data-scope="theme" class="mdw_themeFontSize" id="mdw_themeFontSize" onchange="changeGuiFontSize()" oninput="changeGuiFontSize(false)" type="range" min="50" max="100" step="2.5" value="'+ midWinter_Font_Size +'" defaultValue="75">'
-					+                       '<output id="mdw_themeFontSizeValue">'+midWinter_ShownFontSizeValue+'%</output>'
-					+				'</div>'
-					+           '</li>'
-					+       '</ul>'
-					+   '</li>'
-					+   '<li class="menuitem" id="menu_user_action">'
-					+       '<a class="menu_parent" href="#" inert>'
-					+           '<i class="menu_glyph ti ti-color-swatch"></i>'
-					+           '<span>Colors</span>'
-					+       '</a>'
-					+       '<ul>'
-					+           '<li>'
-					+				'<div>' + usePreferredColorTheme + '</div>'
-					+				'<div>'
-					+					'<label class="checkboxSwitch">'
-					+						'<input data-scope="theme" id="mdw_themeColorModeAuto" data-func="toggleColorModeAuto" class="formCheckbox" type="checkbox" name="mdw_themeColorModeAuto" '+(midWinter_Color_Mode_Auto === 'on' ? 'checked' : '')+'>'
-					+						'<span class="checkboxSlider checkboxRound"></span>'
-					+					'</label>'
-					+					'<label class="checkboxLabel checkboxLabelWanted" for="mdw_themeColorModeAuto"></label>'
-					+                   '<output id="mdw_themeColorModeAutoValue">'+ midWinter_Color_Mode_Auto +'</output>'
-					+				'</div>'
-					+           '</li>'
-
-					+       '</ul>'
-					+   '</li>'
-					+   '<li class="menuitem" id="menu_user_action">'
-					+       '<a class="menu_parent" href="#" inert>'
-					+           '<i class="menu_glyph ti ti-device-mobile"></i>'
-					+           '<span>Mobile Devices</span>'
-					+       '</a>'
-					+       '<ul>'
-					+           '<li>'
-					+				'<div>' + 'Auto Table Layout' + '</div>'
-					+				'<div>'
-					+					'<label class="checkboxSwitch">'
-					+						'<input data-scope="theme" id="mdw_themeAutoTableLayout" data-func="toggleAutoTableLayout" class="formCheckbox" type="checkbox" name="mdw_themeAutoTableLayout" '+(midWinter_Auto_Table_Layout === 'on' ? 'checked' : '')+'>'
-					+						'<span class="checkboxSlider checkboxRound"></span>'
-					+					'</label>'
-					+					'<label class="checkboxLabel checkboxLabelWanted" for="mdw_themeAutoTableLayout"></label>'
-					+                   '<output id="mdw_themeAutoTableLayoutValue">'+ midWinter_Auto_Table_Layout +'</output>'
-					+				'</div>'
-					+           '</li>'
-					+       '</ul>'
-					+   '</li>'
-					+'</ul>';
 			}
 		}
 	}

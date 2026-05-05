@@ -1,4 +1,12 @@
-[data-theme-color='dark'] {
+/* colors.css - variables only */
+
+:root {
+    /* base setup for system-level components */
+    color-scheme: dark light;
+}
+
+/* dark theme definitions */
+:root[data-theme-color='dark'] {
     color-scheme: dark;
     --contrast: 0;
     --hue: 233;
@@ -6,6 +14,8 @@
     --accent2-hue: 202;
     --special-hue: 233;
     --special2-hue: 218;
+
+    /* text colors */
     --text-color-white: hsl(0, 0%, 100%);
     --text-color-black: hsl(0, 0%, 5%);
     --text-color-normal: hsl(var(--hue), 7%, 50%);
@@ -20,9 +30,11 @@
     --text-color-navigation-highlight: hsl(var(--hue), 7%, 85%);
     --text-search-highlight: yellow;
     --text-color-disabled: hsl(var(--hue), 23%, 30%);
+
+    /* background colors */
     --background: hsl(var(--hue), 19%, 17%);
     --background-content: hsl(var(--hue), 23%, 5%);
-    --background-content-element : hsl(var(--hue), 23%, 9%);
+    --background-content-element: hsl(var(--hue), 23%, 9%);
     --background-filter: hsl(var(--hue), 23%, 14%);
     --background-navigation: hsl(var(--hue), 23%, 9%);
     --background-navigation-top: hsl(var(--hue), 23%, 4%);
@@ -38,11 +50,15 @@
     --background-progress-mediumlight: hsla(var(--special2-hue), 69%, 52%, 0.2);
     --background-progress-semilight: hsla(var(--special2-hue), 69%, 80%, 0.1);
     --background-autofill: hsla(var(--special2-hue), 69%, 52%, 0.2);
-    --table-selectable: #164187; /* hsla(var(--special2-hue), 69%, 52%, 0.2); */
+
+    /* table specific */
+    --table-selectable: #164187;
     --table-selected: hsla(var(--special2-hue), 69%, 12%);
     --background-dark: hsl(var(--hue), 19%, 17%);
     --background-active: limegreen;
     --background-active-section: hsl(var(--special2-hue), 69%, 29%);
+
+    /* borders & shadows */
     --border-color: hsl(var(--hue), 19%, 21%);
     --border-color-semilight: hsla(var(--hue), 19%, 100%, 0.04);
     --border-color-light: hsla(var(--hue), 19%, 100%, 0.08);
@@ -54,13 +70,16 @@
     --separator: hsl(var(--hue), 7%, 55%);
 }
 
-[data-theme-color='light'] {
+/* light theme definitions */
+:root[data-theme-color='light'] {
     color-scheme: light;
     --contrast: 0;
     --hue: 180;
     --special-hue: 208;
     --special2-hue: 229;
     --progress-hue: 120;
+
+    /* text colors */
     --text-color-white: hsl(0, 0%, 100%);
     --text-color-black: hsl(0, 0%, 5%);
     --text-color-normal: hsl(var(--hue), 0%, 10%);
@@ -69,16 +88,18 @@
     --text-color-lighter: hsl(var(--hue), 7%, 5%);
     --text-color-high-contrast: hsl(var(--contrast), 0%, 5%);
     --text-color-navigation: hsl(var(--special2-hue), 7%, 25%);
-    --text-color-navigation-highlight:hsl(var(--hue), 7%, 100%);
+    --text-color-navigation-highlight: hsl(var(--hue), 7%, 100%);
     --text-color-highlight-a: hsl(var(--special2-hue), 100%, 50%);
     --text-search-highlight: royalblue;
     --text-color-disabled: hsl(var(--hue), 5%, 40%);
+
+    /* background colors */
     --background: hsl(var(--hue), 27.3%, 97.1%);
     --background-content: hsl(var(--hue), 0%, 98%);
-    --background-content-element : hsl(var(--hue), 0%, 94%);
+    --background-content-element: hsl(var(--hue), 0%, 94%);
     --background-filter: hsl(var(--hue), 17%, 18%);
     --background-navigation: hsl(var(--contrast), 0%, 95%);
-    --background-navigation-top: hsl( var(--contrast), 0%, 100%);
+    --background-navigation-top: hsl(var(--contrast), 0%, 100%);
     --background-navigation-top-lightblue: hsl(var(--special-hue), 69%, 42%);
     --background-navigation-top-blue: hsl(var(--special-hue), 69%, 29%);
     --background-navigation-top-darkblue: hsl(var(--special-hue), 69%, 24%);
@@ -90,12 +111,16 @@
     --background-dark: hsl(var(--special2-hue), 19%, 17%);
     --background-progress: hsl(var(--special-hue), 69%, 40%);
     --background-progress-mediumlight: hsla(var(--special2-hue), 69%, 40%, 0.6);
-    --background-progress-semilight:  hsl(var(--contrast), 0%, 90%);
+    --background-progress-semilight: hsl(var(--contrast), 0%, 90%);
     --background-active: forestgreen;
     --background-active-section: hsl(var(--special-hue), 69%, 32%);
     --background-autofill: lightyellow;
-    --table-selectable: #e4e7e7; /* hsl(var(--hue), 5%, 90%);    /*  */
-    --table-selected: #eceeee; /* hsl(var(--hue), 5%, 93%);      /*  */
+
+    /* table specific */
+    --table-selectable: #e4e7e7;
+    --table-selected: #eceeee;
+
+    /* borders & shadows */
     --border-color: hsla(var(--special2-hue), 84%, 20%, 0.25);
     --border-color-semilight: hsla(var(--special2-hue), 84%, 20%, 0.08);
     --border-color-light: hsla(var(--special2-hue), 84%, 20%, 0.04);

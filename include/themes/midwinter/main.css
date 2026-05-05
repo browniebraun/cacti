@@ -21,28 +21,28 @@
  +-------------------------------------------------------------------------+
 */
 
-/* prerequisites  */
-@import 'css/pre/fonts.css?a23648e6dc13c913f9ae2e993735631b';
-@import 'css/pre/colors.css?6a3d4dc1567013fda818848070dd9939';
-@import 'css/pre/keyframes.css?6d1d6a79b3c3bf783d25ff4a0cb83d59';
-@import 'css/pre/helper.css?6d1d6a79b3c3bf783d25ff4a0cb83d59';
-@import 'css/pre/reset.css?6d1d6a79b3c3bf783d25ff4a0cb83d59';
+/* fundamental resets and typography first to neutralize browser and legacy styles */
+@import 'css/pre/reset.css';
+@import 'css/pre/fonts.css';
+@import 'css/pre/keyframes.css';
+@import 'css/pre/helper.css';
 
-/* Cacti core */
+/* core design definitions and variable matrix */
+@import 'css/pre/colors.css';
+
+/* external cacti core and basic tooltips */
 @import 'css/media/hint.css';
-@import 'css/media/core.css?ad4ed321bb6b1a387743e4af1388207f' all;
-@import 'css/media/print.css?f8c80271650344f45629199331592924' print;
+@import 'css/media/core.css' all;
+@import 'css/media/print.css' print;
 
-/* compact mode */
-@import 'css/media/compact.css?0bda9f47e7be64d1c2709f24cd70ba00' screen;
-@import 'css/media/compact-landscape.css?ce95d6c0a3041f8db65365a6d0dad1ca' screen;
+/* main midwinter layout and responsive grid definitions */
+@import 'css/media/compact.css' screen;
+@import 'css/media/compact-landscape.css' screen;
 
-/* extensions & addons */
-@import 'billboard.midwinter.css?e442c55720734e56c33de67e26a596de';
-@import 'jquery-ui.midwinter.css?7c0c69ff83d0a0d9fc7d54b737c7f9d3';
+/* third party component styling and chart extensions */
+@import 'jquery-ui.midwinter.css';
+@import 'jquery.contextMenu.css';
 @import 'css/media/daterangepicker.css';
+@import 'billboard.midwinter.css';
 
-
-@import 'jquery.contextMenu.css?7c0c69ff83d0a0d9fc7d54b737c7f9d3';
-
-/* End of file */
+/* end of file */

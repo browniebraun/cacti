@@ -33,10 +33,8 @@ midwinter.navigationBox.tree = {
      * @param {object} overrides - optional configuration overwrites
      */
     getDefaultConfig: function(overrides = {}) {
-        // derive the type from the object path
-        const type = 'tree';
-        const base = 'midwinter.navigationBox';
 
+        const base = 'midwinter.navigationBox';
         const defaults = {
             title: 'Tree',
             helper: 'tree',
