@@ -26,7 +26,7 @@ select2Setup = { displayDefaultLabel : true };
 const registry = {};
 
 /* midwinter session object */
-let mdw = {
+window.mdw = {
 	session: {
 		theme: {
 			boxes:      { animated: 'on' },
@@ -155,11 +155,14 @@ async function initMidwinter() {
 function themeReady() {
 	mdw.actions.applyThemeState();
 
-	initMidwinter().then(() => {
+	initMidwinter().then(async () => {
 		setupTheme();
 
 		// register transformers
 		registerMindyTransformers();
+
+		// register events
+		registerMidwinterEvents();
 
 		// Setup Mindy State
 		Mindy.state.destructionList = [
@@ -184,12 +187,26 @@ function themeReady() {
 		updateAjaxAnchors();
 
 		// start Mindy
-		Mindy.init();
+		Mindy.init({
+			context: {
+				appearance: mdw.session.theme.color.mode
+			}
+		});
 		Mindy.ux.hotkeys.init();
 
 		themeLoader('off');
 	});
 }
+
+function registerMidwinterEvents() {
+	Mindy.subscribe('ux:appearance:persist', (data) => {
+		if (window.mdw && mdw.session) {
+			mdw.session.theme.color.mode = data.mode;
+			mdw.actions.refreshLocalStorage();
+		}
+	});
+}
+
 
 /**
  * Mindy Transformers: Surgical DOM modifications
@@ -502,7 +519,7 @@ function togglePwdInputField(event) {
 	}
 }
 
-function refreshLocalStorage() {
+mdw.actions.refreshLocalStorage = function() {
     mdw.cache.storage.set('midWinter', lzjs.compress(JSON.stringify(mdw.session)));
 }
 

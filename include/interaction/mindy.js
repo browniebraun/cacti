@@ -67,46 +67,18 @@ window.Mindy = (() => {
             this.observer.start(); // Observer wird NUR EINMAL gestartet
 
             _initialized = true; // Jetzt ist Mindy offiziell wach
-            this.publish('mindy:ready', { timestamp: Date.now() });
-        },
-
-        // --- plugin loader ---
-        loader: {
-            _path: 'include/interaction/plugins/',
-
-            /**
-             * Loads a set of Mindy plugins and initializes them
-             * @param {Array} plugins - List of plugin names (filenames without .js)
-             */
-            load: async function(plugins = []) {
-                console.group('[Mindy Loader] Bootstrapping Plugins...');
-
-                const loadPromises = plugins.map(name => {
-                    const url = `${this._path}${name}.js`;
-                    return new Promise((resolve, reject) => {
-                        $.getScript(url)
-                            .done(() => {
-                                console.log(`[Mindy Loader] Plugin "${name}" loaded.`);
-                                resolve(name);
-                            })
-                            .fail((jqxhr, settings, exception) => {
-                                console.error(`[Mindy Loader] Failed to load "${name}":`, exception);
-                                reject(exception);
-                            });
-                    });
-                });
-
-                try {
-                    await Promise.all(loadPromises);
-                    console.log('[Mindy Loader] All plugins loaded successfully.');
-
-                    // Trigger initial state update for newly loaded plugins
-                    Mindy.publish('mindy:plugins:ready', { count: plugins.length });
-                } catch (e) {
-                    console.error('[Mindy Loader] Error during plugin bootstrap.');
+            this.subscribe('ux:appearance:persist', (data) => {
+                console.log('[Mindy Service] Syncing color mode to server cookie:', data.mode);
+                Mindy.services.setCookie('CactiColorMode', data.mode);
+            });
+            this.subscribe('ux:appearance:persist', () => {
+                console.log('[Mindy Service] Refreshing graphs...');
+                if (typeof initializeGraphs === 'function') {
+                    initializeGraphs(true);
                 }
-                console.groupEnd();
-            }
+            });
+
+            this.publish('mindy:ready', { timestamp: Date.now() });
         },
 
         // --- Event Bus ---
@@ -356,6 +328,21 @@ window.Mindy = (() => {
 
         // --- User Experience ---
         ux: {
+
+            /**
+             * Toggles the global theme appearance and persists the state
+             */
+            toggleColorMode: function() {
+                const currentMode = Mindy.state.context.appearance || 'dark';
+                const newMode = (currentMode === 'dark') ? 'light' : 'dark';
+
+                // Update internal state & DOM attribute
+                Mindy.setContext({ appearance: newMode });
+
+                // Notify the theme that it should persist this change
+                Mindy.publish('ux:appearance:persist', { mode: newMode });
+            },
+
             hotkeys: {
                 _active: false,
 
