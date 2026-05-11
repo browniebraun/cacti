@@ -184,6 +184,25 @@ midwinter.navigationBox.tree = {
                     if (href) {
                         href = href.replace('action=tree', 'action=tree_content') + '&hyper=true';
                         $('.cactiGraphContentArea').hide();
+
+                        // 2. DER MINDY BUS EVENT
+                        // Wir feuern ein strukturiertes Event, das alles Wichtige enthält
+                        Mindy.publish('navigation:nodeSelected', {
+                            id:       data.node.id,
+                            text:     data.node.text,
+                            type:     data.node.original.type, // z.B. 'device' oder 'graph'
+                            href:     href,
+                            source:   'tree'
+                        });
+
+                        // Mindy sagen, wo wir sind
+                        Mindy.setContext({
+                            rubric:   'Tree',
+                            category: 'Default Tree', // Oder dynamisch aus dem Parent-Node
+                            action:   data.node.text,
+                            helper:   'tree'
+                        });
+
                         // use our global loadUrl helper
                         if (typeof loadUrl === 'function') loadUrl({url: href});
                     }
@@ -344,4 +363,4 @@ midwinter.navigationBox.tree = {
 };
 
 // register this module automatically
-midwinter.navigationBox.registerPlugin('midwinter.navigationBox.tree');
+Mindy.register('tree', midwinter.navigationBox.tree);

@@ -5,10 +5,12 @@ midwinter.navigationBox.menu = {
     // framework-State Update (Buttons/Visibility)
     _notifyState($box, hasContent) {
         const helper = ($box && typeof $box.data === 'function') ? $box.data('helper') : ($box.helper || 'menu');
-        document.dispatchEvent(new CustomEvent('mdw:pluginStateUpdate', {
-            detail: { helper: helper, hasContent: hasContent },
-            bubbles: true
-        }));
+
+        // NEU: Mindy-Bus nutzen
+        Mindy.publish('plugin:stateUpdate', {
+            helper: helper,
+            hasContent: hasContent
+        });
     },
 
     getDefaultConfig: function(overrides = {}) {
@@ -80,6 +82,26 @@ midwinter.navigationBox.menu = {
 
                 $target.html(finalHtml);
 
+                $target[0].addEventListener('click', (e) => {
+                    const $link = $(e.target).closest('a.pic');
+
+                    if ($link.length) {
+                        // Hier greifen wir den Context ab
+                        const label = $link.text().trim();
+                        const $parentItem = $link.closest('.menuitem');
+                        const category = $parentItem.find('.menu_parent span').text().trim();
+
+                        console.log('[Mindy] Capture-Click:', label);
+
+                        Mindy.setContext({
+                            rubric:   $box.data('title') || 'Navigation',
+                            category: category,
+                            action:   label,
+                            helper:   helper
+                        });
+                    }
+                }, true);
+
                 // register ajax functions and trigger
                 if (typeof updateNavigation === 'function') updateNavigation();
                 if (typeof updateAjaxAnchors === 'function') updateAjaxAnchors();
@@ -140,4 +162,5 @@ midwinter.navigationBox.menu = {
     }
 };
 
-midwinter.navigationBox.registerPlugin('midwinter.navigationBox.menu');
+//midwinter.navigationBox.registerPlugin('midwinter.navigationBox.menu');
+Mindy.register('menu', midwinter.navigationBox.menu);

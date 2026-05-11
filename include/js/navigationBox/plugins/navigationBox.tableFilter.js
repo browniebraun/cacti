@@ -1,97 +1,85 @@
-// ensure namespace exists
-var midwinter = midwinter || {};
-midwinter.navigationBox = midwinter.navigationBox || {};
-
+/**
+ * Mindy NavigationBox Plugin: Filter
+ * Handles the integration of Cacti filter forms into the MidWinter sidebar.
+ */
 midwinter.navigationBox.filter = {
-
-    // Internal constants for decoupling
-    _selectors: {
-        cactiTable:      '.cactiTable',
-        cactiFilterTable: '.filterTable',
-        filterTopTarget:  '#filterTableOnTop'
-    },
-
-    // internal helper to notify the Cacti theme (e.g. that content is empty)
-    _notifyState($box, hasContent) {
-        // get the native element
-        const el = $box instanceof jQuery ? $box[0] : $box;
-
-        // extract the helper instance from data attribute
-        const helper = el ? jQuery.data(el, 'helper') : null;
-
-        // prepare event data
-        const eventData = {
-            helper: helper,
-            hasContent: hasContent
-        };
-
-        // create and dispatch native custom event
-        const event = new CustomEvent('mdw:pluginStateUpdate', {
-            detail: eventData,
-            bubbles: true,
-            cancelable: true
-        });
-
-        // trigger event
-        document.dispatchEvent(event);
-    },
-
-    /**
-     * returns the configuration for the filter box
-     */
     getDefaultConfig: function(overrides = {}) {
         const base = 'midwinter.navigationBox.filter';
-        const defaults = {
+        return $.extend(true, {
             title: 'Filter',
             helper: 'displayFilterOptions',
             contentLoader: `${base}.content`,
             initCallback: `${base}.init`,
-            contextMenuItems: {},
             isRefreshable: true,
-        };
-        return $.extend(true, {}, defaults, overrides);
+        }, overrides);
     },
 
     /**
-     * Extracts the Cacti filter table and returns it
+     * Mindy-Native Initialization
+     * Listens for incoming parcels (Cacti filter forms) from the Mindy Parcel Service.
      */
-    content: function($box) {
-        const ns = midwinter.navigationBox.filter;
-        const sel = ns._selectors;
-        const $filterSource = $(`#main ${sel.cactiFilterTable}`).first();
+    init: function($box) {
+        const helper = $box.data('helper');
+        const $myContainer = $box.find('.navBox-content');
+        const pluginId = 'nav-filter'; // Matches the ID in Mindy.ui.layout.map
 
-        if ($filterSource.length) {
+        console.log(`[Filter Plugin] Registered and waiting for parcels (ID: ${pluginId})`);
 
-            // Find the surrounding cacti table container and detach it
-            const $filterContainer = $filterSource.closest(sel.cactiTable).detach();
+        /**
+         * Subscribe to the Parcel Service
+         */
+        Mindy.subscribe('plugin:parcel:ready', (parcel) => {
+            if (parcel.id === pluginId) {
+                // Paket offiziell abholen (entnimmt es aus der Mindy-Mailbox)
+                const $content = Mindy.ui.layout.collect(pluginId);
 
-            /* Legacy support for cacti breaks/titles */
-            const $mainFirstDiv = $("#main > div:first");
-            if ($mainFirstDiv.find(sel.cactiFilterTable).closest('div').length === 1) {
-                const $topTarget = $(sel.filterTopTarget);
+                if ($content && $content.length > 0) {
+                    $myContainer.empty().append($content);
 
-                $(".break:first").detach().appendTo($topTarget);
-                $topTarget.find('.cactiTableTitle').remove();
-                $topTarget.removeClass('hide');
+                    // Dem System melden: Ich habe Inhalt! (Wichtig für Sidebar-Buttons)
+                    Mindy.publish('plugin:content:updated', { id: pluginId, hasContent: true });
+
+                    // E: Visual polish (Ensure form and its elements are visible)
+                    $myContainer.find('form').show().css({
+                        'visibility': 'visible',
+                        'display': 'block'
+                    });
+
+                    //Inform the UI Framework that content is present (show sidebar button)
+                    if (window.mdw && window.mdw.obj.ctrl.nav) {
+                        window.mdw.obj.ctrl.nav.setBoxPresence(helper, true);
+                    }
+                }else {
+                    // If the parcel was empty (page has no filters), hide the box button
+                    if (window.mdw && window.mdw.obj.ctrl.nav) {
+                        window.mdw.obj.ctrl.nav.setBoxPresence(helper, false);
+                    }
+                }
             }
+        });
 
-            return $filterContainer;
-        } else {
-            return '';
+        /**
+         * Initial Check: If a parcel arrived before the plugin finished loading.
+         * We check the mailbox manually once.
+         */
+        const initialMailboxId = `mindy-mailbox-${pluginId}`;
+        const $initialMailbox = $(`#${initialMailboxId}`);
+
+        if ($initialMailbox.length && $initialMailbox.children().length > 0) {
+            Mindy.publish('plugin:parcel:ready', {
+                id: pluginId,
+                mailboxId: initialMailboxId
+            });
         }
     },
 
     /**
-     * Handles events and visibility notification
+     * Default content shown while waiting for Cacti to provide a filter
      */
-    init: function($box) {
-        const ns = midwinter.navigationBox.filter;
-        const $content = $box.find('.navBox-content');
-        const hasContent = $content.children().length > 0 && $content.text().trim() !== "";
-
-        ns._notifyState($box, hasContent);
-    }
+    content: function() {
+        return '<div class="mdw-filter-placeholder">Searching for Cacti filters...</div>';
+    },
 };
 
-// register plugin
-midwinter.navigationBox.registerPlugin('midwinter.navigationBox.filter');
+// Official registration with Mindy
+Mindy.register('filter', midwinter.navigationBox.filter);
