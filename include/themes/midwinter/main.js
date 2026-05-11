@@ -76,74 +76,6 @@ document.addEventListener('mdw:pluginStateUpdate', (e) => {
 });
 
 /**
- * initialize global hotkey dispatcher
- * uses event.code for numbers to avoid shift-key character translation issues
- */
-mdw.actions.initHotKeys = function() {
-	// prevent multiple listener attachments
-	if (mdw.cache.hotkeysActive) return;
-
-	document.addEventListener('keydown', (event) => {
-		// skip only if user is actively typing in an input field
-		const activeEl = document.activeElement;
-		const isTyping = activeEl && (
-			['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName) ||
-			activeEl.isContentEditable
-		);
-
-		if (isTyping) return;
-
-		const parts = [];
-		if (event.ctrlKey)  parts.push('CTRL');
-		if (event.altKey)   parts.push('ALT');
-		if (event.shiftKey) parts.push('SHIFT');
-
-		let keyName = '';
-		if (event.code.startsWith('Digit')) {
-			keyName = event.code.slice(5);
-		} else if (event.code.startsWith('Numpad') && event.code.length === 7) {
-			keyName = event.code.slice(6);
-		} else {
-			keyName = event.key.toUpperCase();
-		}
-
-		if (keyName === 'ESCAPE') keyName = 'ESC';
-		if (keyName === ' ')      keyName = 'SPACE';
-		if (['CONTROL', 'ALT', 'SHIFT'].includes(keyName)) return;
-
-		parts.push(keyName);
-		const combo = parts.join('+');
-
-		// 1. check for global virtual actions (e.g., ESC to exit Kiosk)
-		const virtualAction = uiConfig.global.hotkeys.find(h => h.combo === combo);
-		if (virtualAction && typeof mdw.actions.hotkeyRegistry[virtualAction.action] === 'function') {
-			event.preventDefault();
-			// Stop propagation only for handled actions
-			event.stopImmediatePropagation();
-			mdw.actions.hotkeyRegistry[virtualAction.action]();
-			return;
-		}
-
-		// 2. check for elements with data-hotkey
-		const targetEl = document.querySelector(`[data-hotkey="${combo}"]`);
-		if (targetEl && (targetEl.offsetWidth > 0 || targetEl.offsetHeight > 0)) {
-			event.preventDefault();
-			event.stopImmediatePropagation();
-
-			// use native click
-			targetEl.click();
-		}
-	}, true); // useCapture enabled to catch events early
-
-	mdw.cache.hotkeysActive = true;
-};
-
-
-
-
-
-
-/**
  * main entry point for applying all session-based theme settings
  * modernized to use native batch updates
  */
@@ -220,7 +152,6 @@ async function initMidwinter() {
 	}
 }
 
-
 function themeReady() {
 	mdw.actions.applyThemeState();
 
@@ -254,8 +185,8 @@ function themeReady() {
 
 		// start Mindy
 		Mindy.init();
+		Mindy.ux.hotkeys.init();
 
-		mdw.actions.initHotKeys();
 		themeLoader('off');
 	});
 }
@@ -571,10 +502,6 @@ function togglePwdInputField(event) {
 	}
 }
 
-
-
-
-
 function refreshLocalStorage() {
     mdw.cache.storage.set('midWinter', lzjs.compress(JSON.stringify(mdw.session)));
 }
@@ -602,8 +529,6 @@ function getDocumentAttribute(name) {
 	// native getAttribute from <html> element
 	return document.documentElement.getAttribute('data-' + name);
 }
-
-
 
 function themeLoader(state='off', force = false) {
 	if (state === 'on') {

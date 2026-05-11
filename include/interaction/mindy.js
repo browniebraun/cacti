@@ -165,7 +165,7 @@ window.Mindy = (() => {
             this.publish('context:changed', this.state.context.current);
         },
 
-        // --- UI & Logistics ---
+        // --- User Interface & Logistics ---
         ui: {
             layout: {
                 map: {}, // Populated via main.js (ThemeReady)
@@ -353,6 +353,74 @@ window.Mindy = (() => {
                 }
             }
         },
+
+        // --- User Experience ---
+        ux: {
+            hotkeys: {
+                _active: false,
+
+                /**
+                 * Initializes the global hotkey listener
+                 * Listens for key combos and triggers clicks on data-hotkey elements
+                 */
+                init: function() {
+                    if (this._active) return;
+
+                    document.addEventListener('keydown', (event) => {
+                        // skip if user is actively typing in a form field
+                        const activeEl = document.activeElement;
+                        const isTyping = activeEl && (
+                            ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName) ||
+                            activeEl.isContentEditable
+                        );
+
+                        // Always allow Escape to exit, even if typing
+                        if (isTyping && event.key !== 'Escape') return;
+
+                        // build Combo String (e.g., "CTRL+SHIFT+S")
+                        const parts = [];
+                        if (event.ctrlKey)  parts.push('CTRL');
+                        if (event.altKey)   parts.push('ALT');
+                        if (event.shiftKey) parts.push('SHIFT');
+
+                        // normalize key names using event.code for digits to avoid shift-key translation
+                        let keyName = event.code.startsWith('Digit') ? event.code.slice(5) : event.key.toUpperCase();
+                        if (keyName === 'ESCAPE') keyName = 'ESC';
+                        if (keyName === ' ')      keyName = 'SPACE';
+
+                        // Skip if the key is just a modifier
+                        if (['CONTROL', 'ALT', 'SHIFT'].includes(keyName)) return;
+
+                        parts.push(keyName);
+                        const combo = parts.join('+');
+
+                        // virtual/global hotkeys (Logic without physical buttons)
+                        if (combo === 'ESC') {
+                            // Close PopOver if visible
+                            const $popover = $('#mdw-GridContainer-PopOver');
+                            if ($popover.length && !$popover.hasClass('hidden')) {
+                                event.preventDefault();
+                                if (typeof togglePopOver === 'function') togglePopOver(false);
+                                return;
+                            }
+                        }
+
+                        // physical Elements with data-hotkey attribute
+                        // query the DOM for an element matching the pressed combo
+                        const target = document.querySelector(`[data-hotkey="${combo}"]`);
+                        if (target && (target.offsetWidth > 0 || target.offsetHeight > 0)) {
+                            event.preventDefault();
+                            event.stopImmediatePropagation();
+                            target.click(); // Trigger native click event
+                        }
+                    }, true); // Use capture phase to intercept events early
+
+                    this._active = true;
+                    console.log('[Mindy] Global Hotkey Service initialized.');
+                }
+            }
+        },
+
 
         // --- Mutation Observer ---
         observer: {
