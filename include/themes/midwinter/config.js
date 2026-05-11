@@ -169,7 +169,7 @@ const uiConfig = {
             tooltip: "Toggle light/dark Mode",
             iconClass:  { "dark" : "ti ti-moon-filled" , "light" : "ti ti-sun-filled" },
             destination: "#navControl",
-            onclick: "toggleColorMode",
+            onclick: "Mindy.ux.toggleColorMode",
             param: "on",
             hotkey: 'ALT+SHIFT+C'
         },
