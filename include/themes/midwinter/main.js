@@ -21,53 +21,37 @@
   +-------------------------------------------------------------------------+
 */
 
-select2Setup = {
-	displayDefaultLabel : true
-}
-
-/* registry object to use separate namespaces */
+/* midwinter session object */
+select2Setup = { displayDefaultLabel : true };
 const registry = {};
 
 /* midwinter session object */
 let mdw = {
-    session: {
-        theme: {
-            boxes:      { animated: 'on' },
-            color:      { mode: 'dark', auto: 'off' },
-            controls:   { subTitle: 'off', tooltip: 'on' },
-            font:       { zoom: 75 },
-            mobile:     { autoTableLayout: 'off' },
-        },
-    },
-    obj: { box: {}, ctrl: {} },
-	actions: {
+	session: {
+		theme: {
+			boxes:      { animated: 'on' },
+			color:      { mode: 'dark', auto: 'off' },
+			controls:   { subTitle: 'off', tooltip: 'on' },
+			font:       { zoom: 75 },
+			mobile:     { autoTableLayout: 'off' },
+		},
 	},
+	obj: { box: {}, ctrl: {} },
+	actions: { /* Hier kommen nur noch Theme-spezifische Aktionen rein */ },
 	domMap: {
-		cactiContent:       '#cactiContent',
-		cactiNavRight:      '#navigation_right',
-		cactiBreadcrumb:    '#breadCrumbBar',
-		cactiTable:         '.cactiTable',
-		sortInfo:           'div.sortinfo',
-		mdwMain:            '#mdw-Main',
-		mdwGrid:            '#mdw-GridContainer',
-		mdwPopOver:         '#mdw-GridContainer-PopOver',
-		mdwActionBarTop:    '#mdw-ActionBarTop',
-		cactiAuthBody:   	'.cactiAuthBody',				// login rewrite
-		cactiAuthArea:   	'.cactiAuthArea legend',
-		cactiAuthTable:  	'.cactiAuthTable',
-		cactiAuthForm:   	'.cactiAuth',
-		versionInfo:     	'.versionInfo',
-		loginUsername:   	'#login_username'
+		// Nur noch funktionale Reste, keine Layout-Mapping-Keys mehr!
+		loginUsername: '#login_username',
+		cactiAuthBody: '.cactiAuthBody'
 	},
-    cache: {
-        classes:    [],
-        path:       'include/js/navigationBox/',
-        storage:    Storages.localStorage,
-        tap:        { count: 0, clientX: 0, clientY: 0 },
+	cache: {
+		classes:    [],
+		path:       'include/js/navigationBox/',
+		storage:    Storages.localStorage,
+		tap:        { count: 0, clientX: 0, clientY: 0 },
 		colorListenerActive: false,
 		ajaxAnchorsActive: false
-    }
-}
+	}
+};
 
 mdw.cache.colorListener = (e) => {
 	const isDark = mdw.cache.systemQuery.matches;
@@ -90,41 +74,6 @@ document.addEventListener('mdw:pluginStateUpdate', (e) => {
 		navManager.setBoxPresence(data.helper, data.hasContent);
 	}
 });
-
-/**
- * helper to safely move elements using the mapping
- * @param {string} sourceKey - key from mdw.domMap
- * @param {string} targetKey - key from mdw.domMap
- */
-mdw.actions.relocate = function(sourceKey, targetKey) {
-	// always query fresh from dom because of cacti's ajax content updates
-	const source = document.querySelector(mdw.domMap[sourceKey]);
-	const target = document.querySelector(mdw.domMap[targetKey]);
-
-	// verify both elements exist before moving
-	if (source && target) {
-		target.appendChild(source);
-		return true;
-	}
-	return false;
-};
-
-mdw.actions.hotkeyRegistry = {
-	refreshContent: () => {
-		if (typeof togglePopOver === 'function') togglePopOver(false);
-		if (typeof loadUrl === 'function') {
-			loadUrl({ url: window.location.href });
-		} else {
-			window.location.reload();
-		}
-	},
-	closeOverlays: () => {
-		if (typeof togglePopOver === 'function') togglePopOver(false);
-		if (getDocumentAttribute('kiosk-mode') === 'on') {
-			kioskMode(false);
-		}
-	}
-};
 
 /**
  * initialize global hotkey dispatcher
@@ -190,53 +139,7 @@ mdw.actions.initHotKeys = function() {
 };
 
 
-/**
- * validates and applies color mode changes if necessary
- * @param {string} colorMode - 'dark' or 'light'
- */
-mdw.actions.checkThemeColorSetup = function(colorMode) {
-	// get current attribute from document for comparison
-	const currentDocMode = getDocumentAttribute('theme-color');
 
-	// get current cookie if available
-	const currentCookie = typeof getCookieValue === 'function' ? getCookieValue('CactiColorMode') : null;
-
-	// only trigger update if mode actually changed to prevent loops
-	if (currentDocMode !== colorMode || currentCookie !== colorMode) {
-
-		// update the session object
-		// only if not in auto-mode, otherwise we just sync the UI state
-		if (mdw.session.theme.color.auto !== 'on') {
-			mdw.session.theme.color.mode = colorMode;
-		} else {
-			// in auto-mode, we still want the internal mode to reflect reality
-			mdw.session.theme.color.mode = colorMode;
-		}
-
-		// persist the changes to local storage
-		if (typeof refreshLocalStorage === 'function') {
-			refreshLocalStorage();
-		}
-
-		// IMPORTANT: apply the attributes to the DOM immediately
-		// previously this might have been missing or only called on full refresh
-		if (typeof mdw.actions.applyThemeState === 'function') {
-			mdw.actions.applyThemeState();
-		}
-
-		// sync with server-side cookie
-		if (typeof setCookieValue === 'function') {
-			setCookieValue('CactiColorMode', colorMode);
-		}
-
-		// refresh cacti graphs with new color context
-		if (typeof initializeGraphs === 'function') {
-			initializeGraphs(true);
-		}
-
-		console.log('[Midwinter] Theme color applied:', colorMode);
-	}
-};
 
 
 
@@ -274,70 +177,10 @@ mdw.actions.applyThemeState = function() {
 	Object.keys(attrs).forEach(key => {
 		setDocumentAttribute(key, attrs[key]);
 	});
+
+	mdw.actions.checkPWADisplayMode();
 };
 
-mdw.actions.finalizeLayout = function() {
-	setupDefaultElements();
-	updateNavigation();
-	updateAjaxAnchors();
-	setThemeColor();
-
-	//hideConsoleNavigation();
-	setupThemeActions();
-
-	// set PWA Layout attribute
-	checkPWADisplayMode();
-}
-
-mdw.uiObserver = {
-	instance: null,
-
-	init: function() {
-		// prevention: if an observer is already running, do nothing
-		if (this.instance) return;
-
-		const targetNode = document.body;
-		const config = { childList: true, subtree: true };
-
-		this.instance = new MutationObserver((mutations) => {
-			let needsRelocate = false;
-			const navRightSelector = mdw.domMap.cactiNavRight;
-
-			for (const mutation of mutations) {
-				// we only care about added elements
-				for (const node of mutation.addedNodes) {
-					// skip text nodes or non-element nodes
-					if (node.nodeType !== 1) continue;
-
-					// check if the node itself or one of its children is our target
-					if (node.matches(navRightSelector) || node.querySelector(navRightSelector)) {
-						needsRelocate = true;
-						break;
-					}
-				}
-				if (needsRelocate) break;
-			}
-
-			if (needsRelocate) {
-				// pause: temporarily disconnect to prevent infinite loops during DOM moves
-				this.instance.disconnect();
-
-				// action: relocate content using our helper
-				mdw.actions.relocate('cactiNavRight', 'mdwMain');
-
-				// refresh cacti defaults and theme logic
-				if (typeof setupDefaultElements === 'function') setupDefaultElements();
-				if (typeof setupThemeActions === 'function') setupThemeActions();
-
-				// resume: re-observe after changes are done
-				this.instance.observe(targetNode, config);
-			}
-		});
-
-		this.instance.observe(targetNode, config);
-		console.log('[Midwinter] MutationObserver initialized.');
-	}
-};
 
 
 /**
@@ -351,7 +194,11 @@ async function initMidwinter() {
 	}
 
 	try {
-		// load configuration and core logic first
+
+		// load Mindy always first
+		await loadScript('mindy', 'include/interaction/mindy.js');
+
+		// load configuration and core logic second
 		await Promise.all([
 			loadScript('config', 'include/themes/midwinter/config.js'),
 			loadScript('navigationBox', mdw.cache.path + 'navigationBox.js')
@@ -373,35 +220,108 @@ async function initMidwinter() {
 	}
 }
 
-//restoreLocalStorage();
 
-/**
- * called by cacti whenever a page or ajax fragment is ready
- */
 function themeReady() {
-	// apply immediate layout states that don't depend on scripts
 	mdw.actions.applyThemeState();
 
-	// ensure all dependencies are loaded before proceeding
 	initMidwinter().then(() => {
-		// initialize core logic
 		setupTheme();
+
+		// register transformers
+		registerMindyTransformers();
+
+		// Setup Mindy State
+		Mindy.state.destructionList = [
+			'.cactiPageHead',
+			'.cactiShadow',
+			'.stickyContainer',
+			'.cactiConsoleNavigationArea',
+			'body > .dropdownMenu'
+		];
+
+		Mindy.ui.layout.map = {
+			// paket service (plugins)
+			'form.cactiFilter':     'nav-filter',
+
+			// direct relocations
+			'#navigation_right'							: '#mdw-Main',
+			'#main div.navBarNavigation:first-of-type'  : 'anchor-tableNavBarOnTop',
+			'#main div.saveRow'							: 'anchor-tableActionOnTop',
+		};
+
+		// global listeners
+		updateAjaxAnchors();
+
+		// start Mindy
+		Mindy.init();
+
 		mdw.actions.initHotKeys();
-
-		// process layout and plugins
-		mdw.actions.finalizeLayout();
-
-		// enable observer last
-		mdw.uiObserver?.init?.();
-
-		// remove overlay
-		themeLoader?.('off');
-
-		console.log('[Midwinter] UI fully initialized and reactive.');
+		themeLoader('off');
 	});
 }
 
-function checkPWADisplayMode() {
+/**
+ * Mindy Transformers: Surgical DOM modifications
+ */
+function registerMindyTransformers() {
+	// The Master Table Surgeon
+	Mindy.ui.transformers.add('#main', ($main) => {
+		const $titleRow = $main.find('div.cactiTableTitleRow').first();
+
+		if ($titleRow.length) {
+			const $titleAnchor = $('[data-mindy-anchor="anchor-tableTitleOnTop"]');
+			if ($titleAnchor.is(':empty')) {
+				Mindy.ui.layout.relocate($titleRow.find(".cactiTableTitle").first(), 'anchor-tableTitleOnTop');
+				Mindy.ui.layout.relocate($titleRow.find(".cactiTableAction"), 'anchor-tableActionOnTop');
+				Mindy.ui.layout.relocate($titleRow.find(".cactiTableButton"), 'anchor-ActionBarMiddle');
+				Mindy.ui.layout.relocate($("#main div.actionsDropdown > div > span"), 'anchor-tableActionOnTop');
+				$titleRow.remove()
+			}
+		}
+	});
+
+	// Tab Relocator (Modernized)
+	Mindy.ui.transformers.add('div.tabs', ($tabs) => {
+		const $tabContainer = $tabs.closest('div');
+		if ($tabContainer.length) {
+			Mindy.ui.layout.relocate($tabContainer, 'anchor-tableTabsOnTop');
+		}
+	});
+
+	// Form & Input Modernization
+	Mindy.ui.transformers.add('input[type="text"], input[type="password"], textarea, input[type="checkbox"]', ($el) => {
+		$el.addClass('ui-state-default ui-corner-all');
+
+		// Search Filter logic (Handles filter, filterd, rfilter etc.)
+		if ($el.is('[id^="filter"], [id^="rfilter"]') && !$el.next().hasClass('ti-search')) {
+			$el.after('<i class="ti ti-search filter"></i>');
+			$el.attr({ 'autocomplete': 'off', 'placeholder': 'Search...' });
+			$el.closest('td').css('white-space', 'nowrap'); // Original fix from setupDefaultElements
+		}
+	});
+
+	// Legacy Fixes
+	Mindy.ui.transformers.add('tr[id*="line"]:not(.disabled_row) .formCheckboxLabel', ($label) => {
+		$label.removeAttr('for');
+	});
+
+	// PopOver Finisher
+	Mindy.ui.transformers.add('#mdw-GridContainer-PopOver', ($popover) => {
+		if ($popover.hasClass('hidden')) return;
+		// Make it draggable once it appears
+		if (!$popover.hasClass('ui-draggable')) {
+			$popover.draggable({ containment: '#mdw-GridContainer', scroll: false });
+		}
+		$popover.find('input[type="button"], button').addClass('ui-button ui-corner-all');
+		$popover.find('.ui-dialog-titlebar-close').hide();
+	});
+
+}
+
+/**
+ * PWA Display Mode tracking
+ */
+mdw.actions.checkPWADisplayMode = function() {
 	// initial setup
 	let displayModeQuery = window.matchMedia('(display-mode: standalone)');
 	setDocumentAttribute('theme-pwa', (displayModeQuery.matches) ? 'on' : 'off' );
@@ -411,24 +331,18 @@ function checkPWADisplayMode() {
 		setDocumentAttribute('theme-pwa', (e.matches) ? 'on' : 'off' );
 
 	});
-
-	// TODO conflict with fullscreen mode
 }
 
 /**
- * handles global ajax navigation and resolves overlap with cacti's internal ajaxAnchors()
- * uses event delegation to be robust against cacti's frequent applySkin() calls
+ * AJAX Navigation & Context Push
  */
 function updateAjaxAnchors() {
 	// singleton guard: only attach the global delegate once
 	if (mdw.cache.ajaxAnchorsActive) return;
 
 	document.addEventListener('click', function(event) {
-		// 1. check if the click should be captured (ignore if Shift/Alt/Ctrl/Meta is pressed)
-		// this mirrors cacti's native shouldCaptureClick(event) logic
-		if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) {
-			return;
-		}
+		// 1. check if the click should be captured
+		if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
 
 		// 2. find the closest matching anchor
 		const anchor = event.target.closest('a.pic, a.linkOverDark, a.linkEditMain, a.console, a.hyperLink, a.tab');
@@ -436,14 +350,33 @@ function updateAjaxAnchors() {
 
 		const href = anchor.getAttribute('href');
 
-		// 3. validation check (ignore external, anchors, or mailto)
+		// 3. validation check
 		if (!href || href === '#' || href.startsWith('http') || anchor.getAttribute('target') === '_blank' || href.startsWith('mailto:')) {
 			return;
 		}
 
+		// --- MINDY INTERACTION LAYER: CONTEXT PUSH ---
+		if (typeof Mindy !== 'undefined') {
+			const $anchor = $(anchor);
+			const $parentBox = $anchor.closest('[class*="ConsoleNavigationBox"]');
+
+			// Extrahiere Informationen für den Breadcrumb-Sync
+			const label = anchor.textContent.trim();
+			const category = $anchor.closest('.menuitem').find('.menu_parent span').text().trim() || '';
+			const rubric = $parentBox.data('title') || 'Console';
+			const helper = $parentBox.data('helper') || 'general';
+
+			Mindy.setContext({
+				rubric:   rubric,
+				category: category,
+				action:   label,
+				helper:   helper
+			});
+		}
+
 		// 4. take control: prevent Cacti's native ajaxAnchors() from firing
 		event.preventDefault();
-		event.stopImmediatePropagation();
+		event.stopImmediatePropagation(); // Jetzt sicher wieder aktiv
 
 		/* midwinter specific ui logic */
 		if (anchor.classList.contains('pic')) {
@@ -456,9 +389,12 @@ function updateAjaxAnchors() {
 			menuHide(false);
 		}
 
-		// close midwinter console navigation boxes
+		// close midwinter console navigation boxes (keep UI clean)
 		const sideBarBoxes = document.querySelectorAll('#mdw-SideBarContainer [class^="mdw-ConsoleNavigationBox"]');
-		sideBarBoxes.forEach(box => box.classList.remove('visible'));
+		sideBarBoxes.forEach(box => {
+			box.classList.remove('visible');
+			box.setAttribute('data-status', 'closed');
+		});
 
 		/* determine pageName for cacti global scope */
 		if (typeof basename === 'function') {
@@ -472,165 +408,41 @@ function updateAjaxAnchors() {
 				loadType: 'loadPage'
 			});
 		}
-	}, true); // useCapture = true to intercept before cacti's core listeners
+	}, true); // useCapture = true is vital to stay ahead of Cacti core
 
 	mdw.cache.ajaxAnchorsActive = true;
-	console.log('[Midwinter] Global AJAX anchor delegation active with keyboard modifier support.');
+	console.log('[Mindy/Midwinter] Global AJAX anchor delegation active with context-push.');
 }
 
-
-
 /**
- * updates the breadcrumb navigation based on the active menu element
- * @param {HTMLElement} element - the native anchor element
- */
-function midWinterNavigation(element) {
-	const menuItem = element.closest('.menuitem');
-	const parentBox = element.closest('div[class^="mdw-ConsoleNavigationBox"]');
-
-	// extract core data
-	const helper = parentBox?.dataset.helper;
-	const rubric = parentBox?.dataset.title;
-
-	// handle the "tree_content" special case
-	const currentUrl = window.location.href;
-	let categoryText = menuItem?.querySelector('.menu_parent span')?.textContent || '';
-	let actionHTML = element.parentElement.innerHTML;
-
-	/* --- Inside midWinterNavigation --- */
-	if (currentUrl.includes('action=tree_content') || currentUrl.includes('action=tree')) {
-		// apply workaround: if category is missing in tree mode, set it to "Node"
-		if (!categoryText || categoryText.trim() === '') {
-			categoryText = 'Node';
-		}
-
-		// clean up document title to extract the pure node or graph name
-		// this regex removes common cacti prefixes and handles separators like " - "
-		let pageTitle = document.title;
-
-		/*
-         * replace common cacti title prefixes
-         * matches patterns like "Cacti - ", "Cacti [1.2.x] - ", "Graph View - " etc.
-         */
-		const cleanTitle = pageTitle
-			.replace(/^Cacti\s*(?:\[.*?\])?\s*-\s*/i, '') // removes "Cacti - " or "Cacti - "
-			.replace(/^Graph View\s*-\s*/i, '')           // removes "Graph View - "
-			.replace(/^Console\s*-\s*/i, '');             // removes "Console - "
-
-		actionHTML = `<span>${cleanTitle}</span>`;
-	}
-
-	const btnManager = mdw.obj.ctrl.btn;
-
-	// update rubric
-	const rubricEl = document.querySelector('#navBreadCrumb .rubric');
-	if (rubricEl) {
-		rubricEl.innerHTML = `<span>${rubric}</span>`;
-		rubricEl.dataset.helper = helper;
-		rubricEl.onclick = () => btnManager?.toggleConsoleNavigationBox({ data: { param: 'force_open', filter: 'reset' } });
-	}
-
-	// update category
-	const categoryEl = document.querySelector('#navBreadCrumb .category');
-	if (categoryEl) {
-		categoryEl.innerHTML = `<span>${categoryText}</span>`;
-		categoryEl.dataset.helper = helper;
-		categoryEl.onclick = () => btnManager?.toggleConsoleNavigationBox({ data: { param: 'force_open', filter: categoryText } });
-	}
-
-	// update action
-	const actionEl = document.querySelector('#navBreadCrumb .action');
-	if (actionEl) {
-		actionEl.innerHTML = actionHTML;
-	}
-}
-
-
-/**
- * finds the best matching navigation link for the current browser location
- */
-function updateNavigation() {
-	const currentPath = window.location.pathname;
-	const currentSearch = window.location.search;
-	const fullTarget = currentPath + currentSearch;
-
-	// parse actual url parameters to get the real action
-	const urlParams = new URLSearchParams(currentSearch);
-	const realAction = urlParams.get('action');
-
-	// define search patterns in order of specificity
-	const patterns = [
-		`a[href$="${fullTarget}"]`, // exact match with search params
-		`a[href$="${currentPath}${currentSearch ? currentSearch : ''}"]`,
-		`a[href$="${currentPath}"]`,
-		`a[href$="${currentPath}index.php"]`
-	];
-
-	// if we found a real action in the url, prioritize it
-	if (realAction) {
-		patterns.push(`a[href*="action=${realAction}"]`);
-	}
-
-	// final fallback for the path
-	patterns.push(`a[href^="${currentPath}"]`);
-
-	const navContainers = document.querySelectorAll('div[class^="mdw-ConsoleNavigationBox"]');
-
-	for (const pattern of patterns) {
-		for (const container of navContainers) {
-			const match = container.querySelector(pattern);
-			if (match) {
-				midWinterNavigation(match);
-				return;
-			}
-		}
-	}
-}
-
-
-/**
- * main theme setup logic
- * handles login ui rewrites, main layout transformation and component initialization
+ * Mindy Theme Setup
+ * Creates the grid structure and handles the one-time login rewrite.
  */
 function setupTheme() {
-	/* login and logout rewrite */
-	const authBody = document.querySelector(mdw.domMap.cactiAuthBody);
-	const authArea = document.querySelector(mdw.domMap.cactiAuthArea);
-
-	if (authBody && authArea?.textContent !== 'WELCOME TO CACTI') {
-		authArea.textContent = 'WELCOME TO CACTI';
-
+	// Login-Rewrite
+	const authArea = document.querySelector('.cactiAuthArea legend');
+	if (authArea && authArea.textContent !== 'WELCOME TO CACTI') {
 		const authTable = document.querySelector(mdw.domMap.cactiAuthTable);
 		const authForm = document.querySelector(mdw.domMap.cactiAuthForm);
+		const authBody = document.querySelector(mdw.domMap.cactiAuthBody);
 
 		if (authTable && authForm) {
-			/* suppress autofocus issues */
+			authArea.textContent = 'WELCOME TO CACTI';
 			authForm.insertAdjacentHTML('afterbegin', '<input id="suppress_autofocus" type="text" style="display:none;" tab-index="-1" autofocus>');
 
-			const pwdPlaceholders = {
-				'current': 'Current Password',
-				'password': 'New Password',
-				'password_confirm': 'Confirm Password'
-			};
+			const pwdPlaceholders = { 'current': 'Current Password', 'password': 'New Password', 'password_confirm': 'Confirm Password' };
 
-			/* process table elements and transform to modern layout */
 			authTable.querySelectorAll('input, button, label').forEach(el => {
-				const type = el.getAttribute('type');
 				const id = el.id;
-
 				authForm.appendChild(el);
-
-				if (type === 'password' && pwdPlaceholders[id]) {
+				if (el.getAttribute('type') === 'password' && pwdPlaceholders[id]) {
 					el.setAttribute('placeholder', pwdPlaceholders[id]);
 					el.insertAdjacentHTML('afterend', `<i class="ti ti-lock" data-helper="${id}" data-func="togglePwdInputField"></i>`);
 				}
 			});
 
-			/* handle welcome message and version info */
 			const welcomeCell = authTable.querySelector('td');
-			if (welcomeCell) {
-				authForm.insertAdjacentHTML('afterbegin', `<span>${welcomeCell.innerHTML}</span>`);
-			}
+			if (welcomeCell) authForm.insertAdjacentHTML('afterbegin', `<span>${welcomeCell.innerHTML}</span>`);
 
 			const versionInfo = document.querySelector(mdw.domMap.versionInfo);
 			if (versionInfo) authBody.appendChild(versionInfo);
@@ -642,99 +454,89 @@ function setupTheme() {
 		}
 	}
 
-	/* layout redesign */
-	const cactiContent = document.querySelector(mdw.domMap.cactiContent);
-	const breadcrumb = document.querySelector(mdw.domMap.cactiBreadcrumb);
-
-	if (cactiContent && breadcrumb) {
+	// Layout Redesign (The Grid Skeleton)
+	if (!document.getElementById('mdw-GridContainer')) {
 		const gridHTML = `
 			<div id="mdw-GridContainer" class="mdw-GridContainer">
 				<div id="mdw-GridContainer-Overlay" class="mdw-GridContainer-Overlay mdw-PopOver hidden"></div>
+				
 				<div id="mdw-GridContainer-PopOver" class="mdw-GridContainer-PopOver mdw-PopOver hidden">
-					<div id="mdw-PopOverTitle" class="mdw-PopOverElements mdw-PopOverTitle"></div>
-					<div id="mdw-PopOverContent" class="mdw-PopOverElements mdw-PopOverContent"></div>
-					<div id="mdw-PopOverFooter" class="mdw-PopOverElements mdw-PopOverFooter"></div>
+					<div id="mdw-PopOverTitle" data-mindy-anchor="anchor-popoverTitle" class="mdw-PopOverElements mdw-PopOverTitle"></div>
+					<div id="mdw-PopOverContent" data-mindy-anchor="anchor-popoverContent" class="mdw-PopOverElements mdw-PopOverContent"></div>
+					<div id="mdw-PopOverFooter" data-mindy-anchor="anchor-popoverFooter" class="mdw-PopOverElements mdw-PopOverFooter"></div>
 				</div>
-				<div id="mdw-ConsoleNavigation" class="mdw-ConsoleNavigation"></div>
+		
+				<div id="mdw-ConsoleNavigation" class="mdw-ConsoleNavigation">
+					<div class="compact_nav_icon_menu" id="compact_nav_main">
+						<div class="compact_nav_icon hint--info hint--right hint--rounded" 
+							 data-subtitle="Console" id="navBackdrop" aria-label="Console" 
+							 role="button" tabindex="0"><div class="navBackdrop"></div>
+						</div>
+					</div>
+					<div class="compact_nav_icon_menu" id="compact_tab_menu"></div>
+					<div class="compact_nav_icon_menu" id="compact_user_menu"></div>
+				</div>
+		
 				<div id="mdw-ConsolePageHead" class="mdw-ConsolePageHead">
 					<div id="navBreadCrumb" class="navBreadCrumb">
 						<div class="home"><a href="${urlPath}index.php" class="pic">Home</a></div>
-						<div class="rubric"></div><div class="category"></div><div class="action"></div>
+    					<div class="rubric"><span data-mindy-context="rubric"></span></div>
+    					<div class="category"><span data-mindy-context="category"></span></div>
+    					<div class="action"><span data-mindy-context="action"></span></div>
 					</div>
-					<div id="navSearch" class="navSearch"></div>
-					<div id="navFilter" class="navFilter"></div>
-					<div id="navControl" class="navControl"></div>
+					<div id="navSearch" data-mindy-anchor="anchor-navSearch" class="navSearch"></div>
+					<div id="navFilter" data-mindy-anchor="anchor-navFilter" class="navFilter"></div>
+					<div id="navControl" data-mindy-anchor="anchor-navControl" class="navControl"></div>
 				</div>
-				<div id="mdw-Main" class="mdw-Main"></div>
+		
+				<div id="mdw-Main" class="mdw-Main">
+					<div id="elementsOnTop" class="elementsOnTop">
+						<div id="tableTitleOnTop" data-mindy-anchor="anchor-tableTitleOnTop" class="elementOnTop tableTitleOnTop"></div>
+						<div id="tableNavBarOnTop" data-mindy-anchor="anchor-tableNavBarOnTop" class="elementOnTop tableNavBarOnTop"></div>
+						<div id="tableActionOnTop" data-mindy-anchor="anchor-tableActionOnTop" class="elementOnTop tableActionOnTop"></div>
+						<div id="tableTabsOnTop" data-mindy-anchor="anchor-tableTabsOnTop" class="elementOnTop tableTabsOnTop"></div>
+					</div>
+				</div>
+		
 				<div id="mdw-ActionBar" class="mdw-ActionBar">
-					<div id="mdw-ActionBarTop" class="mdw-ActionBarTop"></div>
-					<div id="mdw-ActionBarMiddle" class="mdw-ActionBarMiddle"></div>
-					<div id="mdw-ActionBarBottom" class="mdw-ActionBarBottom"></div>
+					<div id="mdw-ActionBarTop" data-mindy-anchor="anchor-ActionBarTop" class="mdw-ActionBarTop"></div>
+					<div id="mdw-ActionBarMiddle" data-mindy-anchor="anchor-ActionBarMiddle" class="mdw-ActionBarMiddle"></div>
+					<div id="mdw-ActionBarBottom" data-mindy-anchor="anchor-ActionBarBottom" class="mdw-ActionBarBottom"></div>
 				</div>
 			</div>`;
 
-		breadcrumb.insertAdjacentHTML('beforebegin', gridHTML);
-		mdw.actions.relocate('cactiNavRight', 'mdwMain');
-		cactiContent.remove();
-	}
 
-	/* console navigation area */
-	const consoleNav = document.querySelector('.mdw-ConsoleNavigation');
-	if (consoleNav) {
-		if (!document.getElementById('navBackdrop')) {
-			consoleNav.innerHTML = `
-				<div class="compact_nav_icon_menu">
-					<div class="compact_nav_icon hint--info hint--right hint--rounded" 
-						 data-subtitle="Console" id="navBackdrop" aria-label="Console" 
-						 role="button" tabindex="0">
-						<div class="navBackdrop"></div>
-					</div>
-				</div>`;
+		document.body.insertAdjacentHTML('afterbegin', gridHTML);
 
-			document.getElementById('navBackdrop').addEventListener('click', () => {
-				document.querySelectorAll('[class^="cactiConsoleNavigation"]').forEach(el => el.classList.remove('visible'));
-				if (typeof loadUrl === 'function' && window.cactiConsoleAllowed) {
-					loadUrl({ url: urlPath + 'index.php' });
-				} else {
-					window.open('https://cacti.net', '_blank');
-				}
-			});
-		}
-
-		if (!document.getElementById('compact_tab_menu')) {
-			consoleNav.insertAdjacentHTML('beforeend', `
-				<div class="compact_nav_icon_menu" id="compact_tab_menu"></div>
-				<div class="compact_nav_icon_menu" id="compact_user_menu"></div>
-			`);
-
-			if (typeof cactiNavigation === 'function') {
-				const navManager = new cactiNavigation({ dock: { top: false, bottom: false }, window: { enabled: false } });
-				const boxManager = new cactiBox();
-				const btnManager = new cactiButton();
-
-				mdw.obj.ctrl.nav = navManager;
-				mdw.obj.ctrl.box = boxManager;
-				mdw.obj.ctrl.btn = btnManager;
-
-				const processedBoxConfigs = midwinter.navigationBox.buildConfigs(uiConfig.boxes);
-
-				navManager.checkConfigurationIntegrity(processedBoxConfigs, uiConfig.buttons);
-
-				// register buttons and include hotkey attribute from config
-				uiConfig.buttons.forEach(btn => {
-					// the btnManager.add will now handle the rendering including data-hotkey
-					btnManager.add(btn);
-				});
-
-				processedBoxConfigs.forEach(box => {
-					boxManager.add(box);
-					boxManager.restore(box.helper);
-				});
+		// Back-to-Console Listener
+		document.getElementById('navBackdrop')?.addEventListener('click', () => {
+			if (typeof loadUrl === 'function' && window.cactiConsoleAllowed) {
+				loadUrl({ url: urlPath + 'index.php' });
 			}
-		}
+		});
 	}
 
-	/* clean up legacy elements */
+	// Controller Initialization (Singleton)
+	if (typeof cactiNavigation === 'function' && !mdw.obj.ctrl.nav) {
+		// B: Jetzt erst die Instanzen erstellen
+		mdw.obj.ctrl.nav = new cactiNavigation({
+			dock: { enabled: true, top: true, left: true, right: true, bottom: true },
+			container: 'mdw-SideBarContainer'
+		});
+		mdw.obj.ctrl.box = new cactiBox();
+		mdw.obj.ctrl.btn = new cactiButton();
+
+		// Process configurations from config.js
+		const processedBoxConfigs = midwinter.navigationBox.buildConfigs(uiConfig.boxes);
+
+		uiConfig.buttons.forEach(btn => mdw.obj.ctrl.btn.add(btn));
+		processedBoxConfigs.forEach(box => {
+			mdw.obj.ctrl.box.add(box);
+			mdw.obj.ctrl.box.restore(box.helper);
+		});
+	}
+
+	/* 4. Cleanup Legacy */
 	document.getElementById('menu_main_console')?.remove();
 	document.querySelectorAll('a.menu_parent').forEach(el => {
 		el.classList.remove('mdw-active');
@@ -743,38 +545,9 @@ function setupTheme() {
 }
 
 
+
 function setupThemeActions() {
-/*
-	$('[data-scope="theme"][id^="mdw_"]:not([type="range"]), ' +
-		'a[data-scope="theme"], ' +
-		'i[data-func!=""][data-func]'
-	).off().on('click', function(e) {
-		let fname = $(this).attr('data-func');
-		if(is_function(fname)) window[fname](e);
-	});
-
-	$('input[type="range"][data-scope="theme"][id^="mdw_"]').off().on('change', function(e) {
-		let fname = $(this).attr('data-func');
-		if(is_function(fname)) window[fname](e);
-	});
-*/
 	document.addEventListener("fullscreenchange", fullScreenChangeHandler);
-
-	// make popover draggable
-	$('#mdw-GridContainer-PopOver').draggable({
-		containment: '#mdw-GridContainer',
-		scroll: false,
-		start: function() {
-			$(this).css('transform', 'translateX(0)');
-		}
-	});
-
-	$('.graphPage').off().on('resize', function() { alert(); })
-}
-
-function redirect(event) {
-	event.preventDefault();
-	window.location = event.data.param;
 }
 
 function togglePwdInputField(event) {
@@ -798,115 +571,6 @@ function togglePwdInputField(event) {
 	}
 }
 
-/**
- * handles the restructuring of cacti table elements into midwinter layout
- * modernized to avoid redundant DOM operations
- */
-function setupDefaultElements() {
-	const popover = document.querySelector(mdw.domMap.mdwPopOver);
-
-	// only proceed if popover is hidden (active page layout)
-	if (popover && popover.classList.contains('hidden')) {
-
-		// cleanup legacy cacti elements
-		const legacyElements = document.querySelectorAll(mdw.domMap.cactiBreadcrumb + ', .cactiPageHead, .cactiShadow, .cactiConsoleNavigationArea, .stickyContainer');
-		legacyElements.forEach(el => el.remove());
-
-		// ensure elementsOnTop container is available
-		let onTop = document.getElementById('elementsOnTop');
-		if (!onTop) {
-			const navRight = document.querySelector(mdw.domMap.cactiNavRight);
-			if (navRight) {
-				navRight.insertAdjacentHTML('afterbegin', `
-					<div id="elementsOnTop" class="elementsOnTop">
-						<div id="tableTitleOnTop" class="elementOnTop tableTitleOnTop"></div>
-						<div id="tableNavBarOnTop" class="elementOnTop tableNavBarOnTop"></div>
-						<div id="tableActionOnTop" class="elementOnTop tableActionOnTop"></div>
-						<div id="tableTabsOnTop" class="elementOnTop tableTabsOnTop"></div>
-					</div>`);
-				onTop = document.getElementById('elementsOnTop');
-			}
-		}
-
-		// clear temporary containers before re-filling
-		document.querySelectorAll(".elementOnTop, #mdw-ActionBarMiddle").forEach(el => el.innerHTML = '');
-
-		// move table elements to midwinter containers
-		const main = document.getElementById('main');
-		if (main) {
-			// move tabs
-			const tabs = main.querySelector('div.tabs:first-child');
-			if (tabs) {
-				const tabContainer = document.getElementById('tableTabsOnTop');
-				if (tabContainer) tabContainer.appendChild(tabs.closest('div'));
-			}
-
-			// move table title and actions
-			const titleRow = main.querySelector('div.cactiTableTitleRow');
-			if (titleRow) {
-				const title = titleRow.querySelector('.cactiTableTitle');
-				const action = titleRow.querySelector('.cactiTableAction:not(:empty)');
-				const buttons = titleRow.querySelector('.cactiTableButton:not(:empty)');
-
-				if (title) document.getElementById('tableTitleOnTop').appendChild(title);
-				if (action) document.getElementById('tableActionOnTop').appendChild(action);
-				if (buttons) document.getElementById('mdw-ActionBarMiddle').appendChild(buttons);
-
-				titleRow.remove();
-			}
-
-			// handle save rows and nav bars
-			const saveRow = main.querySelector('div.saveRow');
-			const actionDrop = main.querySelector('div.actionsDropdown');
-
-			if (saveRow) {
-				document.getElementById('tableActionOnTop').appendChild(saveRow);
-			} else if (actionDrop) {
-				document.getElementById('tableActionOnTop').appendChild(actionDrop);
-			}
-
-			const navBar = main.querySelector('div.navBarNavigation');
-			if (navBar) {
-				document.getElementById('tableNavBarOnTop').appendChild(navBar.cloneNode(true));
-			}
-		}
-
-		// modernize filter inputs
-		const filters = [
-			{ id: 'filter',  placeholder: window.searchFilter },
-			{ id: 'filterd', placeholder: window.searchFilter },
-			{ id: 'rfilter', placeholder: window.searchRFilter }
-		];
-
-		filters.forEach(f => {
-			const el = document.getElementById(f.id);
-			if (el && !el.nextElementSibling?.classList.contains('ti-search')) {
-				el.insertAdjacentHTML('afterend', '<i class="ti ti-search filter"></i>');
-				el.setAttribute('autocomplete', 'off');
-				el.setAttribute('placeholder', f.placeholder || '');
-				el.classList.add('ui-state-default', 'ui-corner-all');
-
-				const parentTd = el.closest('td');
-				if (parentTd) parentTd.style.whiteSpace = 'nowrap';
-			}
-		});
-
-		// apply global styles to inputs
-		document.querySelectorAll('input[type="text"], input[type="password"], input[type="checkbox"], textarea')
-			.forEach(el => el.classList.add('ui-state-default', 'ui-corner-all'));
-
-		// legacy row fix
-		document.querySelectorAll('tr[id*="line"]:not(.disabled_row) .formCheckboxLabel')
-			.forEach(label => label.removeAttribute('for'));
-
-		// trigger plugin refresh
-		if (typeof midwinter?.navigationBox?.refreshPlugins === 'function') {
-			midwinter.navigationBox.refreshPlugins();
-		}
-
-		if (typeof setNavigationScroll === 'function') setNavigationScroll();
-	}
-}
 
 
 
@@ -951,151 +615,34 @@ function themeLoader(state='off', force = false) {
 	}
 }
 
-
-function setCookieValue(name, value) {
-	const days = 365;
-	const date = new Date();
-	date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-
-	const expires = "; expires=" + date.toUTCString();
-	const secure = (window.location.protocol === "https:") ? "; Secure" : "";
-	const path = "; path=" + (typeof urlPath !== 'undefined' ? urlPath : '/') + "; SameSite=Lax";
-
-	document.cookie = name + "=" + (value || "") + expires + path + secure;
-}
-
-function getCookieValue(name) {
-	const nameEQ = name + "=";
-	const ca = document.cookie.split(';');
-	for (let i = 0; i < ca.length; i++) {
-		let c = ca[i];
-		while (c.charAt(0) === ' ') c = c.substring(1, c.length);
-		if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
-	}
-	return null;
-}
-
 /**
- * synchronizes theme color settings and handles auto-detection
- */
-function setThemeColor() {
-	const themeColorInput = document.getElementById('mdw_themeColorMode');
-	if (themeColorInput) {
-		themeColorInput.disabled = (mdw.session.theme.color.auto === 'on');
-	}
-	detectSystemColorSetup(mdw.session.theme.color.auto);
-}
-
-/**
- * manages the system-level color scheme observer
- * @param {string} state - 'on' or 'off'
- */
-function detectSystemColorSetup(state) {
-	// singleton: ensure the MediaQueryList object exists only once
-	if (!mdw.cache.systemQuery) {
-		mdw.cache.systemQuery = window.matchMedia('(prefers-color-scheme: dark)');
-	}
-
-	const mql = mdw.cache.systemQuery;
-
-	if (state === 'on') {
-		// guard: only attach the listener if it's not already marked as active
-		if (!mdw.cache.colorListenerActive) {
-
-			// helper to support both modern and legacy browsers (Ubuntu/Webkit)
-			if (mql.addEventListener) {
-				mql.addEventListener('change', mdw.cache.colorListener);
-			} else {
-				mql.addListener(mdw.cache.colorListener);
-			}
-
-			mdw.cache.colorListenerActive = true;
-			console.log('[Midwinter] System color observer attached (Singleton).');
-		}
-
-		// perform immediate sync regardless of listener attachment
-		mdw.actions.checkThemeColorSetup(mql.matches ? 'dark' : 'light');
-
-	} else {
-		// stop observing if it was active
-		if (mdw.cache.colorListenerActive) {
-			if (mql.removeEventListener) {
-				mql.removeEventListener('change', mdw.cache.colorListener);
-			} else {
-				mql.removeListener(mdw.cache.colorListener);
-			}
-
-			mdw.cache.colorListenerActive = false;
-			console.log('[Midwinter] System color observer detached.');
-		}
-
-		// return to manual session mode
-		mdw.actions.checkThemeColorSetup(mdw.session.theme.color.mode);
-	}
-}
-
-/**
- * processes html content for the popover and manages its sub-elements
- * @param {string} html - the raw html content from cacti
+ * Mindy-enhanced PopOver preparation
  */
 function preparePopOver(html) {
-	// get references to the main popover containers
-	const popover = document.getElementById('mdw-GridContainer-PopOver');
-	const screenOverlay = document.getElementById('mdw-GridContainer-Overlay');
+	$('[data-mindy-anchor^="anchor-popover"]').empty();
 
-	if (popover && screenOverlay) {
-		// locate target sub-elements for title, content and footer
-		const titleTarget = popover.querySelector('.mdw-PopOverTitle');
-		const contentTarget = popover.querySelector('.mdw-PopOverContent');
-		const footerTarget = popover.querySelector('.mdw-PopOverFooter');
+	const $temp = $('<div>').html(html);
 
-		// create a temporary container to parse the incoming html string
-		const temp = document.createElement('div');
-		temp.innerHTML = html;
+	// use Mindy to relocate elements into the PopOver anchors
+	// this ensures consistency and prevents stacking bugs
+	Mindy.ui.layout.relocate($temp.find('.cactiTableTitleRow'), 'anchor-popoverTitle');
+	Mindy.ui.layout.relocate($temp.find('.saveRow'), 'anchor-popoverFooter');
 
-		// extract specific cacti elements (title row and save row) from the source
-		const titleSource = temp.querySelector('.cactiTableTitleRow');
-		const footerSource = temp.querySelector('.saveRow');
+	// set main content
+	$('#mdw-PopOverContent').html($temp.html());
 
-		// move elements to their respective targets if found
-		if (contentTarget) {
-			contentTarget.innerHTML = '';
-			contentTarget.appendChild(temp);
-		}
+	// sanitize Buttons (Cancel/Confirm)
+	const $popover = $('#mdw-GridContainer-PopOver');
+	$popover.find('button[value="cancel"]').off('click').on('click', (e) => {
+		e.preventDefault();
+		togglePopOver(false);
+	});
 
-		if (titleTarget && titleSource) {
-			titleTarget.innerHTML = '';
-			titleTarget.appendChild(titleSource);
-		}
-
-		if (footerTarget && footerSource) {
-			footerTarget.innerHTML = '';
-			footerTarget.appendChild(footerSource);
-		}
-
-		// sanitize and re-bind the cancel button functionality
-		const cancelButtons = popover.querySelectorAll('button[value="cancel"]');
-		cancelButtons.forEach(btn => {
-			// remove any inline onclick handlers and set fresh native listener
-			btn.onclick = null;
-			btn.addEventListener('click', (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-				togglePopOver(false);
-			}, { once: true });
-		});
-
-		// handle the confirm action form submission
-		const confirmForm = popover.querySelector('#action_confirm');
-		if (confirmForm) {
-			confirmForm.addEventListener('submit', () => {
-				togglePopOver(false);
-			}, { once: true });
-		}
-
-		// finally display the popover
-		togglePopOver(true);
+	if ($popover.find('#action_confirm').length) {
+		$popover.find('#action_confirm').off('submit').on('submit', () => togglePopOver(false));
 	}
+
+	togglePopOver(true);
 }
 
 /**
@@ -1121,24 +668,22 @@ function togglePopOver(force) {
 	});
 }
 
-function fullScreen(event) {
+/* --- Navigation & UX Actions --- */
+mdw.actions.fullScreen = function() {
 	if (!document.fullscreenElement) {
-		document.documentElement.requestFullscreen().then( r => fullScreenChangeHandler() );
-	}else if (document.exitFullscreen) {
-		document.exitFullscreen().then( r => fullScreenChangeHandler() );
+		document.documentElement.requestFullscreen().then(() => mdw.actions.fullScreenChangeHandler());
+	} else if (document.exitFullscreen) {
+		document.exitFullscreen().then(() => mdw.actions.fullScreenChangeHandler());
 	}
-}
+};
 
-function fullScreenChangeHandler() {
+mdw.actions.fullScreenChangeHandler = function() {
 	const icon = document.querySelector('.compact_nav_icon[data-helper="fullScreen"] > i');
 	if (!icon) return;
-
-	if (document.fullscreenElement) {
-		icon.classList.replace('ti-maximize', 'ti-minimize');
-	} else {
-		icon.classList.replace('ti-minimize', 'ti-maximize');
-	}
-}
+	const isFull = !!document.fullscreenElement;
+	icon.classList.toggle('ti-maximize', !isFull);
+	icon.classList.toggle('ti-minimize', isFull);
+};
 
 function kioskMode(event = false) {
 	const mainElement = document.querySelector(mdw.domMap.mdwMain);
@@ -1263,18 +808,10 @@ async function loadElement(elementName, url = '', content_only = false) {
 		return content_only ? targetElement.innerHTML : targetElement.outerHTML;
 
 	} catch (error) {
-		console.error(`[Midwinter] loadElement failed:`, error);
-		if (typeof getPresentHTTPError === 'function') {
-			getPresentHTTPError(error);
-		}
+		console.error(`[Mindy/Plugin] loadElement failed for ${elementName}:`, error);
 		return '';
 	}
 }
-
-function is_function(f_name) {
-	return (typeof window[f_name] === 'function');
-}
-
 
 
 
