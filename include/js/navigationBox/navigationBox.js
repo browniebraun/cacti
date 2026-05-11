@@ -808,14 +808,7 @@ class cactiButton extends cactiNavigation {
             // Bind Events
             if (this._isFunction(clickFunc)) {
                 $button.on("click", { param: config.param }, (e) => {
-                    // First priority: Method on this instance (like toggleConsoleNavigationBox)
-                    if (typeof this[clickFunc] === 'function') {
-                        this[clickFunc](e);
-                    }
-                    // Second priority: Global window function
-                    else if (typeof window[clickFunc] === 'function') {
-                        window[clickFunc](e);
-                    }
+                    this._runFunction(clickFunc, e);
                 });
 
                 $button.on("keydown", {
